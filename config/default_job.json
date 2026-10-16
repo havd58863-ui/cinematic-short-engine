@@ -1,0 +1,12 @@
+{
+  "mode": "automatic",
+  "topic": null,
+  "script_file": null,
+  "target_region": "us-en",
+  "target_seconds": 45,
+  "enable_real_image_to_video": true,
+  "output_format": "mp4",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30
+}

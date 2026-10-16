@@ -1,0 +1,21 @@
+# Pinned compatibility target: Python 3.10–3.13. The version set is pinned for repeatability; execute notebook preflight/tests in the target Colab image before relying on a runtime. Colab's preinstalled CUDA-compatible Torch is intentionally NOT pinned here.
+# If dependency resolution detects conflicts in the active Colab image, stop and report them rather than upgrading Torch silently.
+pydantic==2.11.7
+Pillow==11.3.0
+psutil==7.0.0
+ddgs==9.16.0
+trafilatura==2.3.1
+pytrends==4.9.2
+diffusers==0.35.2
+transformers==4.57.3
+accelerate==1.10.1
+safetensors==0.6.2
+numpy==2.2.6
+soundfile==0.13.1
+# Upstream commit pins include Python 3.13 metadata fixes not yet present in the PyPI package metadata.
+misaki[en] @ git+https://github.com/hexgrad/misaki.git@fba1236595f2d2bf21d414ba6e57d25256afada3
+kokoro @ git+https://github.com/hexgrad/kokoro.git@dfb907a02bba8152ca444717ca5d78747ccb4bec
+openai-whisper==20250625
+pytest==8.4.2
+# Optional helper: Kinocut is also installed best-effort in the Colab notebook.
+# kinocut==1.16.1

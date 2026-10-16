@@ -1,0 +1,134 @@
+version: 2
+project: cinematic-short-engine
+default_target: TikTok US, English, vertical 9:16
+status: implemented_locally_push_pending_and_external_model_tests_pending
+research:
+  - name: TikTok Creative Center
+    url: https://ads.tiktok.com/creative/creativeCenter/trends
+    role: official entry point for available TikTok trend information
+    limits: automated access is not assumed; no metrics are invented
+  - name: DDGS
+    repository: https://github.com/deedy5/ddgs
+    role: discovery of publicly indexed pages and topic evidence
+    install: requirements-colab.txt
+  - name: Trafilatura
+    repository: https://github.com/adbar/trafilatura
+    role: extract readable article text from publicly accessible URLs
+    install: requirements-colab.txt
+  - name: pytrends
+    repository: https://github.com/GeneralMills/pytrends
+    role: optional Google search-interest signal only; not TikTok analytics
+    enabled_by_default: false
+  - name: requests via Python standard library
+    role: bounded public page/API requests; no access-control bypass
+  - name: source_registry
+    path: research/source_registry.py
+    role: normalize URLs, timestamps, metrics provenance, and source deduplication
+  - name: competitor_analysis
+    path: research/competitor_analysis.py
+    role: discover publicly indexed example videos/pages; omit unverified performance metrics
+scriptwriting:
+  primary_adapter:
+    name: SCRIPTWRITER_COMMAND adapter
+    path: director/scriptwriter_adapter.py
+    role: invoke an existing scriptwriting workflow when explicitly configured
+    command_contract: "command --prompt-file PATH --output-file PATH"
+    note: no legacy scriptwriter lives in the freshly initialized project; use Ollama fallback unless configured
+  fallback:
+    name: Ollama
+    repository: https://github.com/ollama/ollama
+    model: qwen2.5:3b-instruct
+    role: script generation, research-grounded candidate drafting, structured storyboard JSON
+    note: model download and runtime availability must be verified in Colab
+story_analysis:
+  path: director/script_analysis.py
+  role: word count, speech-duration estimates, paragraph extraction, rule-based pacing diagnostics
+storyboard:
+  path: director/storyboard.py
+  framework: Pydantic v2
+  role: structured shot list with schema/timeline validation, camera, continuity, audio, captions, and generation settings
+  continuity_adapter: director/continuity_manager.py
+  shot_planner: director/shot_planner.py
+images:
+  framework:
+    name: Hugging Face Diffusers
+    repository: https://github.com/huggingface/diffusers
+  primary_model:
+    id: stabilityai/stable-diffusion-xl-base-1.0
+    url: https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0
+    role: text-to-image storyboard assets
+    license: CreativeML Open RAIL++-M (verify current model card terms before monetized use; not programmatically certified)
+  lower_resource_fallback:
+    id: runwayml/stable-diffusion-v1-5
+    url: https://huggingface.co/runwayml/stable-diffusion-v1-5
+    role: configured lower-memory Diffusers checkpoint when GPU preflight selects it
+    license_note: verify current model terms before commercial use
+  reference_images:
+    name: Diffusers IP-Adapter loading API
+    repository: https://github.com/tencent-ailab/IP-Adapter
+    weights_reference: https://huggingface.co/h94/IP-Adapter
+    role: persistent reference-sheet generation for recurring subjects; attempt IP-Adapter conditioning when a valid reference, SDXL, compatible Diffusers API, and sufficient resources are present
+  fallback:
+    name: Pixabay/Pexels image search
+    paths: [generation/stock_images.py]
+    activation: optional PIXABAY_API_KEY and/or PEXELS_API_KEY in Colab Secrets
+    role: disclosed stock-asset fallback; not AI-generated
+video:
+  framework:
+    name: Diffusers
+    repository: https://github.com/huggingface/diffusers
+  high_resource_model:
+    id: Wan-AI/Wan2.1-I2V-14B-480P-Diffusers
+    url: https://huggingface.co/Wan-AI/Wan2.1-I2V-14B-480P-Diffusers
+    role: true neural image-to-video only when compatible pipeline and conservative >=48 GB VRAM and >=100 GB free cache-space preflight (the Diffusers repository is very large) are available
+    license_note: review current model card and commercial terms before use
+  lower_resource_model:
+    id: stabilityai/stable-video-diffusion-img2vid-xt
+    url: https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt
+    role: image-conditioned neural video attempt with conservative 12 GB VRAM preflight
+    limits: output is trained landscape footage and will be reframed to portrait; this model does not take a text motion prompt
+    license_note: review current model card and commercial terms before monetization
+  fallback:
+    name: FFmpeg pan/zoom/crop animation
+    repository: https://github.com/FFmpeg/FFmpeg
+    path: generation/image_to_video.py
+    method_label: ffmpeg_animation
+    role: animate real image asset when neural video is disabled, incompatible, or fails; never misrepresented as AI video
+voice:
+  name: Kokoro-82M
+  repository: https://github.com/hexgrad/kokoro
+  path: generation/voice_generation.py
+  role: generate American English narration from text; reuse one pipeline instance across paragraph segments
+  default_voice: af_heart
+  install_source: pinned upstream Git commits for Python 3.13 metadata compatibility (Kokoro dfb907a02bba8152ca444717ca5d78747ccb4bec; Misaki fba1236595f2d2bf21d414ba6e57d25256afada3)
+  license_note: verify the chosen voice/model distribution terms before monetized use
+subtitles:
+  name: OpenAI Whisper
+  repository: https://github.com/openai/whisper
+  path: generation/subtitles.py
+  role: transcribe actual rendered narration and create word/phrase-timed SRT and ASS subtitles
+  not_for: text-to-speech
+editing:
+  - name: FFmpeg
+    repository: https://github.com/FFmpeg/FFmpeg
+    path: editing/render_video.py
+    role: assemble shot clips, 9:16 reframe, mix narration/music, burn subtitles, encode H.264 MP4
+  - name: ffprobe
+    repository: https://github.com/FFmpeg/FFmpeg
+    role: inspect codecs, dimensions, duration and audio/video streams
+  - name: Kinocut
+    repository: https://github.com/KyaniteLabs/kinocut
+    install: pip install kinocut==1.16.1 (best-effort optional install in Colab)
+    cli: kino doctor; kino metric-qc INPUT
+    path: editing/kinocut_adapter.py
+    role: optional second-line diagnostics for rendered MP4s
+    limits: does not replace mandatory FFmpeg/ffprobe validation; skipped if unavailable or incompatible; command outputs are persisted to intermediate/kinocut_qc.json
+quality:
+  schema: schemas/storyboard.schema.json
+  qa_module: director/quality_control.py
+  media_validation: editing/render_video.py
+  report_files: [quality_report.json, quality_report.md]
+  status_values: [success, partial_success, failed]
+security:
+  secrets: environment variables or Google Colab Secrets only
+  never_commit: [API keys, OAuth tokens, generated media, model weights, model caches]

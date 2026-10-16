@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tiktok-ai-director"
+version = "0.2.0"
+description = "Resource-aware, resumable open-source TikTok research, scripting, storyboard, generation, rendering and QA pipeline"
+requires-python = ">=3.10"
+dependencies = [
+  "pydantic>=2.7,<3",
+  "Pillow>=10.0",
+  "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+research = ["ddgs>=9.0", "trafilatura>=1.9", "pytrends>=4.9.2"]
+images = ["diffusers>=0.32,<0.38", "transformers>=4.44", "accelerate>=0.33", "safetensors>=0.4"]
+voice = ["kokoro>=0.9", "soundfile>=0.12", "numpy>=1.26"]
+subtitles = ["openai-whisper>=20240930"]
+test = ["pytest>=8.0"]
+kinocut = ["kinocut==1.16.1"]
+all = ["ddgs>=9.0", "trafilatura>=1.9", "pytrends>=4.9.2", "diffusers>=0.32,<0.38", "transformers>=4.44", "accelerate>=0.33", "safetensors>=0.4", "kokoro>=0.9", "soundfile>=0.12", "numpy>=1.26", "openai-whisper>=20240930", "pytest>=8.0", "psutil>=5.9"]
+
+[project.scripts]
+tiktok-director = "tiktok_director.cli:main"
+
+[tool.setuptools]
+packages = ["research", "director", "generation", "editing", "tiktok_director", "tools"]
+package-dir = {"" = ".", "tiktok_director" = "src/tiktok_director"}
+include-package-data = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
