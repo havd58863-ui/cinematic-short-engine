@@ -9,7 +9,37 @@ def estimate_duration_seconds(script: str, words_per_minute: int = 155) -> float
     return round(words / max(int(words_per_minute), 1) * 60, 1)
 
 
-def analyze_script(script: str, target_seconds: int = 45, words_per_minute: int = 155) -> dict[str, Any]:
+def validate_script_structure(script: str, account_profile: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validates structural beats required for Account 01 or Account 02."""
+    if not account_profile:
+        return {"valid": True, "stages_found": [], "missing_stages": [], "notes": "No account profile supplied."}
+
+    account_id = account_profile.get("account_id", "")
+    expected_structure = account_profile.get("script_structure", [])
+    text_lower = script.lower()
+
+    found = []
+    missing = []
+
+    for stage in expected_structure:
+        # Check if stage marker or semantic equivalents exist in script
+        stage_key = stage.lower()
+        if stage_key in text_lower or any(word in text_lower for word in stage_key.split()):
+            found.append(stage)
+        else:
+            missing.append(stage)
+
+    valid = len(missing) == 0
+    return {
+        "account_id": account_id,
+        "valid": valid,
+        "stages_found": found,
+        "missing_stages": missing,
+        "expected_structure": expected_structure,
+    }
+
+
+def analyze_script(script: str, target_seconds: int = 45, words_per_minute: int = 155, account_profile: dict[str, Any] | None = None) -> dict[str, Any]:
     text = script.strip()
     if not text:
         raise ValueError("Script is empty.")
@@ -19,8 +49,10 @@ def analyze_script(script: str, target_seconds: int = 45, words_per_minute: int 
     first_sentence = sentences[0] if sentences else paragraphs[0].splitlines()[0]
     opening_hook_words = len(re.findall(r"\b[\w’'-]+\b", first_sentence))
     duration = estimate_duration_seconds(text, words_per_minute)
+    structure_val = validate_script_structure(text, account_profile)
     return {
         "word_count": len(words),
+        "script_structure_validation": structure_val,
         "sentence_count": len(sentences),
         "paragraph_count": len(paragraphs),
         "estimated_duration_seconds": duration,

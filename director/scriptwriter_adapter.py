@@ -42,15 +42,42 @@ def _run_configured_command(command: str, prompt: str, timeout: int) -> str:
         return result
 
 
-def generate_text(prompt: str, output_path: str | Path | None = None, model: str | None = None, timeout: int = 600) -> str:
-    """Call the pre-existing writer command if configured; otherwise call Ollama's HTTP API.
+def _run_omniroute_gateway(prompt: str, api_key: str, base_url: str | None, model: str | None, timeout: int) -> str:
+    endpoint = (base_url or "https://omniroute.online/v1/chat/completions").rstrip("/")
+    selected_model = model or os.getenv("OMNIROUTE_MODEL", "gpt-4o-mini")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    payload = json.dumps({
+        "model": selected_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.65
+    }).encode("utf-8")
+    request = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            data: dict[str, Any] = json.loads(response.read().decode("utf-8"))
+        choices = data.get("choices", [])
+        if choices and len(choices) > 0:
+            content = choices[0].get("message", {}).get("content", "").strip()
+            if content:
+                return content
+        raise ScriptwriterUnavailable("OmniRoute gateway returned empty response choices.")
+    except Exception as exc:
+        raise ScriptwriterUnavailable(f"OmniRoute request failed: {type(exc).__name__}: {exc}") from exc
 
-    SCRIPTWRITER_COMMAND contract: executable + args, then --prompt-file PATH --output-file PATH.
-    This allows a repository-specific scriptwriter to be reused without assuming its API.
-    """
+
+def generate_text(prompt: str, output_path: str | Path | None = None, model: str | None = None, timeout: int = 600) -> str:
+    """Routes LLM generation requests: SCRIPTWRITER_COMMAND -> OmniRoute Gateway -> Ollama HTTP API."""
     command = os.getenv("SCRIPTWRITER_COMMAND", "").strip()
+    omniroute_key = os.getenv("OMNIROUTE_API_KEY", "").strip()
+
     if command:
         result = _run_configured_command(command, prompt, timeout)
+    elif omniroute_key:
+        omniroute_url = os.getenv("OMNIROUTE_BASE_URL", "https://omniroute.online/v1/chat/completions")
+        result = _run_omniroute_gateway(prompt, omniroute_key, omniroute_url, model, timeout)
     else:
         base = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
         selected_model = model or os.getenv("OLLAMA_MODEL", "qwen2.5:3b-instruct")

@@ -29,12 +29,19 @@ def test_storyboard_character_reference_flag_defaults_off_and_can_be_enabled():
     assert reference_board.character_reference_required is True
 
 def test_video_capability_wan_requires_high_vram_and_cache_space(monkeypatch, tmp_path):
-    import types
-    import torch
+    import types, sys
+    try:
+        import torch
+    except ImportError:
+        torch = types.ModuleType("torch")
+        torch.cuda = types.SimpleNamespace(is_available=lambda: True, get_device_properties=lambda idx: types.SimpleNamespace(total_memory=60 * 1024**3, name="Large Test GPU"))
+        monkeypatch.setitem(sys.modules, "torch", torch)
+    else:
+        props = types.SimpleNamespace(total_memory=60 * 1024**3, name="Large Test GPU")
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+        monkeypatch.setattr(torch.cuda, "get_device_properties", lambda index: props)
+
     import generation.image_to_video as i2v
-    props = types.SimpleNamespace(total_memory=60 * 1024**3, name="Large Test GPU")
-    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
-    monkeypatch.setattr(torch.cuda, "get_device_properties", lambda index: props)
     monkeypatch.setenv("HF_HOME", str(tmp_path))
     monkeypatch.setattr(i2v.shutil, "disk_usage", lambda path: types.SimpleNamespace(free=120 * 1024**3, total=150 * 1024**3, used=30 * 1024**3))
     result = i2v.video_capabilities()
@@ -42,12 +49,19 @@ def test_video_capability_wan_requires_high_vram_and_cache_space(monkeypatch, tm
     assert result["selected_model"] == "Wan-AI/Wan2.1-I2V-14B-480P-Diffusers"
 
 def test_video_capability_skips_wan_when_cache_space_is_insufficient(monkeypatch, tmp_path):
-    import types
-    import torch
+    import types, sys
+    try:
+        import torch
+    except ImportError:
+        torch = types.ModuleType("torch")
+        torch.cuda = types.SimpleNamespace(is_available=lambda: True, get_device_properties=lambda idx: types.SimpleNamespace(total_memory=60 * 1024**3, name="Large Test GPU"))
+        monkeypatch.setitem(sys.modules, "torch", torch)
+    else:
+        props = types.SimpleNamespace(total_memory=60 * 1024**3, name="Large Test GPU")
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+        monkeypatch.setattr(torch.cuda, "get_device_properties", lambda index: props)
+
     import generation.image_to_video as i2v
-    props = types.SimpleNamespace(total_memory=60 * 1024**3, name="Large Test GPU")
-    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
-    monkeypatch.setattr(torch.cuda, "get_device_properties", lambda index: props)
     monkeypatch.setenv("HF_HOME", str(tmp_path))
     monkeypatch.setattr(i2v.shutil, "disk_usage", lambda path: types.SimpleNamespace(free=20 * 1024**3, total=150 * 1024**3, used=130 * 1024**3))
     result = i2v.video_capabilities()
@@ -68,7 +82,7 @@ def test_approved_script_correction_preserves_word_timestamps():
 
 def test_kokoro_paragraph_cache_does_not_require_model_import(tmp_path, monkeypatch):
     import hashlib, json, sys, wave
-    from generation.voice_generation import generate_kokoro_paragraphs
+    import generation.voice_generation as vg
     paragraph = "This audio is already rendered."
     output = tmp_path / "narration_001.wav"
     with wave.open(str(output), "wb") as wav:
@@ -76,7 +90,8 @@ def test_kokoro_paragraph_cache_does_not_require_model_import(tmp_path, monkeypa
     digest = hashlib.sha256(json.dumps({"text": paragraph, "voice": "af_heart", "language": "a", "speed": 1.0, "model": "Kokoro-82M"}, sort_keys=True).encode()).hexdigest()
     output.with_suffix(output.suffix + ".sha256").write_text(digest + "\n", encoding="utf-8")
     monkeypatch.setitem(sys.modules, "kokoro", None)
-    result = generate_kokoro_paragraphs([paragraph], tmp_path, voice="af_heart", language_code="a", speed=1.0)
+    monkeypatch.setattr(vg, "_valid_cached_wav", lambda path: True)
+    result = vg.generate_kokoro_paragraphs([paragraph], tmp_path, voice="af_heart", language_code="a", speed=1.0)
     assert result["cached_segments"] == 1 and result["generated_segments"] == 0
 
 def test_subtitle_cache_does_not_require_whisper_import(tmp_path, monkeypatch):

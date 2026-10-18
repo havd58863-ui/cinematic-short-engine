@@ -62,9 +62,35 @@ def _freshness_points(published_at: Any, now: datetime) -> tuple[int, float | No
     return 0, round(age_days, 2)
 
 
-def score_idea(title: str, sources: list[dict[str, Any]], target_audience: str = "US TikTok viewers", hardware_feasibility: int = 5, related_series: int = 8, now_utc: datetime | None = None) -> dict[str, Any]:
+def evaluate_dna_gate(title: str, snippet_text: str, account_profile: dict[str, Any] | None = None) -> tuple[bool, str]:
+    """Mandatory account DNA gate check before weighted scoring."""
+    if not account_profile:
+        return True, "No account profile supplied; DNA gate passed by default."
+    account_id = account_profile.get("account_id", "")
+    text = (title + " " + snippet_text).lower()
+
+    if "account_01" in account_id:
+        # Forbidden: medical advice, diagnosing viewers
+        forbidden = ["diagnos", "medical advice", "cure your", "treatment for", "symptom of your disorder"]
+        for term in forbidden:
+            if term in text:
+                return False, f"Account 01 DNA Gate Failed: forbidden phrase '{term}' found (no medical claims/diagnosing)."
+    elif "account_02" in account_id:
+        # Forbidden: non-storytelling clickbait, generic listicles
+        forbidden = ["top 5 life hacks", "quick trick", "unbelievable hack", "buy this now"]
+        for term in forbidden:
+            if term in text:
+                return False, f"Account 02 DNA Gate Failed: forbidden phrase '{term}' found (must be narrative storytelling)."
+
+    return True, f"{account_id} DNA Gate Passed."
+
+
+def score_idea(title: str, sources: list[dict[str, Any]], target_audience: str = "US TikTok viewers", hardware_feasibility: int = 5, related_series: int = 8, now_utc: datetime | None = None, account_profile: dict[str, Any] | None = None, published_catalogue: list[str] | None = None) -> dict[str, Any]:
     now = _as_utc(now_utc or datetime.now(timezone.utc))
-    text = (title + " " + " ".join(str(s.get("title", "")) + " " + str(s.get("snippet", "")) for s in sources)).lower()
+    combined_snippets = " ".join(str(s.get("title", "")) + " " + str(s.get("snippet", "")) for s in sources)
+    dna_passed, dna_reason = evaluate_dna_gate(title, combined_snippets, account_profile)
+
+    text = (title + " " + combined_snippets).lower()
     grounded = [s for s in sources if s.get("url")]
     evidence = min(20, len(grounded) * 5)
     freshness_details = []
@@ -79,11 +105,28 @@ def score_idea(title: str, sources: list[dict[str, Any]], target_audience: str =
     feasibility = max(0, min(10, int(hardware_feasibility)))
     series = max(0, min(10, int(related_series)))
     specificity = min(10, max(2, int(len(title.split()) * 1.2)))
-    total = round(evidence + freshness + curiosity + visual + originality + feasibility + series + specificity, 1)
+
+    # Topic Saturation Penalty against published catalogue
+    saturation_penalty = 0
+    if published_catalogue and title:
+        title_words = set(title.lower().split())
+        for past_item in published_catalogue:
+            past_words = set(past_item.lower().split())
+            if title_words and past_words:
+                overlap = len(title_words.intersection(past_words)) / len(title_words)
+                if overlap > 0.6:
+                    saturation_penalty += 15
+
+    total = round(evidence + freshness + curiosity + visual + originality + feasibility + series + specificity - saturation_penalty, 1)
+    final_score = max(0, min(100, total)) if dna_passed else 0.0
+
     return {
         "title": title,
+        "account_id": account_profile.get("account_id") if account_profile else "default",
+        "dna_gate_passed": dna_passed,
+        "dna_gate_reason": dna_reason,
         "target_audience": target_audience,
-        "score": min(100, total),
+        "score": final_score,
         "components": {
             "source_evidence_max_20": evidence,
             "freshness_signal_max_15": freshness,
@@ -93,6 +136,7 @@ def score_idea(title: str, sources: list[dict[str, Any]], target_audience: str =
             "hardware_feasibility_max_10": feasibility,
             "series_potential_max_10": series,
             "specificity_max_10": specificity,
+            "saturation_penalty": saturation_penalty,
         },
         "freshness_evidence": freshness_details,
         "evidence_urls": [s["url"] for s in grounded],
