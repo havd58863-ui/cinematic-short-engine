@@ -29,6 +29,8 @@ class Settings(BaseModel):
     music_file: Path | None = None
     music_volume: float = Field(default=0.14, ge=0, le=0.4)
     run_black_silence_checks: bool = True
+    account_id: str = "account_01_psychology"
+    account_config_path: Path | None = None
 
     @field_validator("output_root", "model_cache_root", mode="before")
     @classmethod
@@ -46,6 +48,25 @@ class Settings(BaseModel):
         return cls(**data)
 
     @classmethod
+    def load_account_profile(cls, account_id_or_path: str | Path) -> dict:
+        """Loads account profile JSON by account ID or explicit config file path."""
+        path = Path(account_id_or_path)
+        if not path.is_file():
+            # Try default account config directory
+            account_key = str(account_id_or_path).replace("-", "_")
+            if not account_key.endswith(".json"):
+                account_key = f"{account_key}.json"
+            candidate = Path("config/accounts") / account_key
+            if candidate.is_file():
+                path = candidate
+            else:
+                # Fallback to account_01 if not found
+                path = Path("config/accounts/account_01_psychology.json")
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+        return {}
+
+    @classmethod
     def from_env(cls) -> "Settings":
         return cls(
             target_region=os.getenv("RESEARCH_REGION", "us-en"),
@@ -57,4 +78,5 @@ class Settings(BaseModel):
             tts_voice=os.getenv("KOKORO_VOICE", "af_heart"),
             whisper_model=os.getenv("WHISPER_MODEL", "base.en"),
             use_ip_adapter=os.getenv("ENABLE_IP_ADAPTER", "true").lower() == "true",
+            account_id=os.getenv("TIKTOK_ACCOUNT_ID", "account_01_psychology"),
         )

@@ -5,6 +5,7 @@ from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urlparse
 import re
+import json
 import urllib.error
 import urllib.request
 
@@ -141,6 +142,37 @@ def extract_page_text(url: str, max_chars: int = 12000) -> dict[str, Any]:
         return {"url": url, "status": "success" if text else "empty", "text": text[:max_chars], "error": None if text else "No readable article text extracted."}
     except Exception as exc:
         return {"url": url, "status": "unavailable", "error": f"{type(exc).__name__}: {exc}", "text": ""}
+
+
+def reddit_public_trends(subreddit: str = "psychology", limit: int = 10) -> list[dict[str, Any]]:
+    """Fetch recent public Reddit posts via public JSON RSS feed without requiring API tokens."""
+    retrieved = datetime.now(timezone.utc).isoformat()
+    url = f"https://www.reddit.com/r/{subreddit}/hot.json?limit={limit}"
+    request = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (compatible; CinematicShortEngine/1.0; +https://github.com/havd58863-ui/cinematic-short-engine)"
+    })
+    results = []
+    try:
+        with urllib.request.urlopen(request, timeout=10.0) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode("utf-8"))
+                posts = data.get("data", {}).get("children", [])
+                for item in posts:
+                    p = item.get("data", {})
+                    results.append({
+                        "title": p.get("title", ""),
+                        "url": f"https://www.reddit.com{p.get('permalink', '')}",
+                        "snippet": (p.get("selftext") or "")[:500],
+                        "source": f"Reddit r/{subreddit}",
+                        "source_type": "reddit_public_json",
+                        "collected_at_utc": retrieved,
+                        "published_at": datetime.fromtimestamp(p.get("created_utc", 0), tz=timezone.utc).isoformat() if p.get("created_utc") else None,
+                        "metrics": {"score": p.get("score", 0), "num_comments": p.get("num_comments", 0)},
+                        "metrics_note": "Public Reddit score and comment counts."
+                    })
+    except Exception:
+        pass
+    return results
 
 
 def google_trends_interest(keywords: list[str], timeframe: str = "today 3-m", geo: str = "US") -> dict[str, Any]:

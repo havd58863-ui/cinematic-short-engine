@@ -1,0 +1,35 @@
+{
+  "account_id": "account_01_psychology",
+  "name": "Account 01 — Cinematic Psychology",
+  "language": "English",
+  "target_audience": "US / English TikTok viewers seeking psychological self-discovery",
+  "core_promise": "Viewers recognize their own behavior before realizing they are learning.",
+  "script_structure": [
+    "HOOK",
+    "CURIOSITY",
+    "PSYCHOLOGICAL MECHANISM",
+    "REALIZATION",
+    "FINAL LINE"
+  ],
+  "forbidden_elements": [
+    "medical diagnosis",
+    "unsupported psychological claims",
+    "diagnosing viewers",
+    "generic introductions",
+    "sensationalist promises",
+    "filler content"
+  ],
+  "visual_dna": {
+    "style": "cinematic psychological metaphor, large atmospheric environments, small human presence, deep navy and teal cool shadows with warm amber practical lights, atmospheric depth, motivated slow camera motion, restrained on-screen text",
+    "color_palette": ["deep navy", "teal", "cool shadow", "warm amber"],
+    "aspect_ratio": "9:16",
+    "resolution": [1080, 1920]
+  },
+  "voice_dna": {
+    "voice": "af_heart",
+    "tone": "mature, deep, warm, neutral English male voice, controlled and intimate",
+    "speed": 0.95
+  },
+  "target_seconds": 45,
+  "output_folder": "jobs/account_01"
+}
