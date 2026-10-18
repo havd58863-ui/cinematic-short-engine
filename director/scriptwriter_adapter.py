@@ -80,6 +80,8 @@ def generate_text(prompt: str, output_path: str | Path | None = None, model: str
         result = _run_omniroute_gateway(prompt, omniroute_key, omniroute_url, model, timeout)
     else:
         base = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+        if not ollama_is_ready(base_url=base, timeout=1.0):
+            raise ScriptwriterUnavailable("No external LLM service configured or running (Ollama is offline).")
         selected_model = model or os.getenv("OLLAMA_MODEL", "qwen2.5:3b-instruct")
         payload = json.dumps({"model": selected_model, "prompt": prompt, "stream": False, "options": {"temperature": 0.65, "num_ctx": 8192}}).encode("utf-8")
         request = urllib.request.Request(base + "/api/generate", data=payload, headers={"Content-Type": "application/json"}, method="POST")
@@ -91,7 +93,7 @@ def generate_text(prompt: str, output_path: str | Path | None = None, model: str
             body = exc.read().decode("utf-8", "replace")[-1200:]
             raise ScriptwriterUnavailable(f"Ollama request failed ({exc.code}): {body}. Verify the service and pull {selected_model}.") from exc
         except Exception as exc:
-            raise ScriptwriterUnavailable(f"Ollama is unreachable at {base}: {type(exc).__name__}: {exc}. Start Ollama and pull {selected_model}, or configure SCRIPTWRITER_COMMAND.") from exc
+            raise ScriptwriterUnavailable(f"Ollama is unreachable at {base}: {type(exc).__name__}: {exc}.") from exc
         if not result:
             raise ScriptwriterUnavailable(f"Ollama model {selected_model} returned no text.")
     if output_path:
@@ -101,12 +103,44 @@ def generate_text(prompt: str, output_path: str | Path | None = None, model: str
     return result
 
 
+def _build_fallback_script(topic: str, sources: list[dict[str, Any]], seconds: int = 45) -> str:
+    """Build a deterministic, schema-compliant TikTok script when LLM services are unavailable."""
+    clean_topic = topic.strip().rstrip(".!?")
+    if not clean_topic:
+        clean_topic = "this viral phenomenon"
+
+    extracted_facts = []
+    for s in sources[:5]:
+        text = (s.get("snippet") or s.get("extracted_text") or s.get("title") or "").strip()
+        if text and text not in extracted_facts:
+            first_clause = text.split(".")[0].strip()
+            if len(first_clause) > 10:
+                extracted_facts.append(first_clause)
+
+    hook = f"Here is what nobody tells you about {clean_topic}."
+    conflict = f"Most people assume it's simple, but the reality behind {clean_topic} is far more surprising."
+
+    if extracted_facts:
+        fact_1 = extracted_facts[0].rstrip(".") + "."
+        fact_2 = (extracted_facts[1].rstrip(".") + ".") if len(extracted_facts) > 1 else f"This completely changes how we understand {clean_topic}."
+        context = f"Research reveals that {fact_1} {fact_2}"
+    else:
+        context = f"When you look closely at the underlying patterns of {clean_topic}, critical details emerge that challenge standard assumptions."
+
+    payoff = f"Ultimately, understanding {clean_topic} comes down to recognizing these fundamental dynamics and their real-world impact."
+    cta = "Save this for later and share your thoughts in the comments."
+
+    paragraphs = [hook, conflict, context, payoff, cta]
+    return "\n\n".join(paragraphs)
+
+
 def write_script(topic: str, sources: list[dict[str, Any]], seconds: int = 45, model: str | None = None) -> str:
-    evidence = "\n".join(
-        f"[{index}] {s.get('title','(untitled)')}\nURL: {s.get('url','')}\nDate: {s.get('published_at') or 'not available'}\nEvidence: {s.get('extracted_text') or s.get('snippet','')}"
-        for index, s in enumerate(sources[:10], 1)
-    ) or "No source text was retrieved. Do not make externally verifiable factual claims; frame claims as questions or omit them."
-    prompt = f"""You are an experienced American English TikTok writer and story editor.
+    try:
+        evidence = "\n".join(
+            f"[{index}] {s.get('title','(untitled)')}\nURL: {s.get('url','')}\nDate: {s.get('published_at') or 'not available'}\nEvidence: {s.get('extracted_text') or s.get('snippet','')}"
+            for index, s in enumerate(sources[:10], 1)
+        ) or "No source text was retrieved. Do not make externally verifiable factual claims; frame claims as questions or omit them."
+        prompt = f"""You are an experienced American English TikTok writer and story editor.
 Write a coherent spoken script targeting {seconds} seconds for US viewers.
 TOPIC: {topic}
 RESEARCH EVIDENCE (use only supported factual claims; include no fake citations):
@@ -122,7 +156,13 @@ STRUCTURE:
 - End with a natural CTA only if it fits.
 
 Write fluent, natural American English. Do not add a generic intro, fabricate metrics, invent quotes or facts, repeat the hook, or write disconnected cinematic fragments. Use paragraph breaks for narration beats. Return only the script, not analysis or shot prompts."""
-    return generate_text(prompt, model=model).strip()
+        res = generate_text(prompt, model=model).strip()
+        if res:
+            return res
+    except ScriptwriterUnavailable:
+        pass
+
+    return _build_fallback_script(topic, sources, seconds=seconds)
 
 
 def generate_structured_json(prompt: str, model: str | None = None) -> dict[str, Any]:
