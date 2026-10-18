@@ -15,7 +15,7 @@
   "tts_language_code": "a",
   "tts_speed": 1.0,
   "whisper_model": "base.en",
-  "ollama_model": "qwen2.5:3b-instruct",
+  "omniroute_model": "gpt-4o-mini",
   "output_root": "jobs",
   "model_cache_root": "model_cache",
   "research_max_results": 6,

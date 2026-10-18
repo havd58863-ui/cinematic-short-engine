@@ -18,7 +18,7 @@
 | `research/idea_scoring.py` | Evidence-based scoring engine | Partial | Has basic weighting but missing mandatory DNA Gate and saturation penalty. |
 | `research/source_registry.py` | Source provenance & dedup | Functional | Normalizes URLs, timestamps, and collection status. |
 | `research/competitor_analysis.py` | Analysis of indexed content | Functional | Extracts publicly indexed page metadata without inventing view metrics. |
-| `director/scriptwriter_adapter.py` | LLM scripting adapter | Functional (Ollama/CLI/OpenAI) | Needs OmniRoute (`https://omniroute.online/`) gateway support. |
+| `director/scriptwriter_adapter.py` | LLM scripting adapter | Functional (OmniRoute API / CLI) | Uses OmniRoute gateway (`https://omniroute.online/`). |
 | `director/script_analysis.py` | Pacing & structure analysis | Functional | Needs stage validation for Account 01 (5 stages) and Account 02 (7 stages, 75–120s). |
 | `director/storyboard.py` | Pydantic v2 Shot list | Functional | Enforces timed shot schema, camera angles, and character continuity flags. |
 | `director/continuity_manager.py` | Subject/world continuity | Functional | Validates visual prompts against Character/World Bibles. |
@@ -99,7 +99,7 @@
                                          v
 +-----------------------------------------------------------------------------------+
 |                              LLM SCRIPTWRITER ADAPTER                              |
-|   Routes to: OmniRoute Gateway / Ollama / OpenAI API / Custom CLI                 |
+|   Routes to: OmniRoute Gateway / Custom CLI                                       |
 |   Enforces Script Structure:                                                      |
 |   - Account 01: Hook -> Curiosity -> Psych Mechanism -> Realization -> Final Line |
 |   - Account 02: Cold Open -> Question -> Journey -> Discovery -> Turn -> Payoff    |
@@ -275,7 +275,6 @@ The feedback engine calculates topic saturation weights and improves hook visual
 | Idea Scoring & DNA Gating | **FULL RUN** | Can run | None |
 | Script structure verification | **FULL RUN** | Can run | None |
 | OmniRoute LLM provider call | Can call | Can call | `OMNIROUTE_API_KEY` (Colab Secret) |
-| Ollama local LLM scriptwriter | If Ollama running | **FULL RUN** | None |
 | Voice Generation (Kokoro-82M) | Tests mocked/cached | **FULL RUN** | None |
 | Image Generation (SDXL T2I) | CPU fallback (slow) | **FULL RUN (GPU)** | None |
 | Video Generation (Wan 2.1 / SVD) | FFmpeg animation fallback | **FULL RUN (GPU >=12GB/48GB)** | None |

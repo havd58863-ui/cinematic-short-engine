@@ -56,7 +56,7 @@ def _topic_from_script(script: str) -> str:
     return "User-provided TikTok script"
 
 
-def _load_or_create_script(job: Path, topic: str, supplied_script: str | None, sources: list[dict[str, Any]], seconds: int, model: str) -> tuple[str, bool]:
+def _load_or_create_script(job: Path, topic: str, supplied_script: str | None, sources: list[dict[str, Any]], seconds: int, model: str | None = None) -> tuple[str, bool]:
     script_path = job / "script" / "approved_script.txt"
     if supplied_script is not None:
         script = supplied_script.strip()
@@ -147,7 +147,7 @@ def run_job(topic: str | None = None, script: str | None = None, settings: Setti
             warnings.append("Research produced no accessible source results. No external metric or factual claim was fabricated.")
 
         # Competitor and trend metadata are already saved by research engine. Script can be supplied without rewriting.
-        script_text, supplied = _load_or_create_script(job, effective_topic, script, sources, settings.video_seconds, settings.ollama_model)
+        script_text, supplied = _load_or_create_script(job, effective_topic, script, sources, settings.video_seconds, settings.omniroute_model)
         analysis = analyze_script(script_text, target_seconds=settings.video_seconds)
         _write_json(job / "script" / "script_analysis.json", analysis)
         _manifest_update(job, manifest, "script", "success", {"supplied_by_user": supplied, "word_count": analysis["word_count"], "estimated_duration_seconds": analysis["estimated_duration_seconds"]})
@@ -167,7 +167,7 @@ def run_job(topic: str | None = None, script: str | None = None, settings: Setti
             board = Storyboard.model_validate_json(board_path.read_text(encoding="utf-8"))
             board.validate_timeline()
         else:
-            board = create_storyboard(script_text, title=effective_topic, seconds=settings.video_seconds, model=settings.ollama_model)
+            board = create_storyboard(script_text, title=effective_topic, seconds=settings.video_seconds, model=settings.omniroute_model)
         board = plan_asset_paths(board, job)
         board_path.write_text(board.model_dump_json(indent=2), encoding="utf-8")
         continuity = build_continuity_report(board, job)
