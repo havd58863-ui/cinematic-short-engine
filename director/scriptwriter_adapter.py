@@ -1,11 +1,10 @@
-"""Scriptwriting adapter: reuse a configured existing writer first, else Ollama."""
+"""Scriptwriting adapter: reuse a configured existing writer first, else OmniRoute API."""
 from __future__ import annotations
 import json
 import os
 import shlex
 import subprocess
 import tempfile
-import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -13,15 +12,6 @@ from typing import Any
 
 class ScriptwriterUnavailable(RuntimeError):
     pass
-
-
-def ollama_is_ready(base_url: str | None = None, timeout: float = 2.0) -> bool:
-    base = (base_url or os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")).rstrip("/")
-    try:
-        with urllib.request.urlopen(base + "/api/tags", timeout=timeout) as response:
-            return response.status == 200
-    except Exception:
-        return False
 
 
 def _run_configured_command(command: str, prompt: str, timeout: int) -> str:
@@ -64,12 +54,14 @@ def _run_omniroute_gateway(prompt: str, api_key: str, base_url: str | None, mode
             if content:
                 return content
         raise ScriptwriterUnavailable("OmniRoute gateway returned empty response choices.")
+    except ScriptwriterUnavailable:
+        raise
     except Exception as exc:
         raise ScriptwriterUnavailable(f"OmniRoute request failed: {type(exc).__name__}: {exc}") from exc
 
 
 def generate_text(prompt: str, output_path: str | Path | None = None, model: str | None = None, timeout: int = 600) -> str:
-    """Routes LLM generation requests: SCRIPTWRITER_COMMAND -> OmniRoute Gateway -> Ollama HTTP API."""
+    """Routes LLM generation requests: SCRIPTWRITER_COMMAND -> OmniRoute Gateway."""
     command = os.getenv("SCRIPTWRITER_COMMAND", "").strip()
     omniroute_key = os.getenv("OMNIROUTE_API_KEY", "").strip()
 
@@ -79,23 +71,8 @@ def generate_text(prompt: str, output_path: str | Path | None = None, model: str
         omniroute_url = os.getenv("OMNIROUTE_BASE_URL", "https://omniroute.online/v1/chat/completions")
         result = _run_omniroute_gateway(prompt, omniroute_key, omniroute_url, model, timeout)
     else:
-        base = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
-        if not ollama_is_ready(base_url=base, timeout=1.0):
-            raise ScriptwriterUnavailable("No external LLM service configured or running (Ollama is offline).")
-        selected_model = model or os.getenv("OLLAMA_MODEL", "qwen2.5:3b-instruct")
-        payload = json.dumps({"model": selected_model, "prompt": prompt, "stream": False, "options": {"temperature": 0.65, "num_ctx": 8192}}).encode("utf-8")
-        request = urllib.request.Request(base + "/api/generate", data=payload, headers={"Content-Type": "application/json"}, method="POST")
-        try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                data: dict[str, Any] = json.loads(response.read().decode("utf-8"))
-            result = str(data.get("response", "")).strip()
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", "replace")[-1200:]
-            raise ScriptwriterUnavailable(f"Ollama request failed ({exc.code}): {body}. Verify the service and pull {selected_model}.") from exc
-        except Exception as exc:
-            raise ScriptwriterUnavailable(f"Ollama is unreachable at {base}: {type(exc).__name__}: {exc}.") from exc
-        if not result:
-            raise ScriptwriterUnavailable(f"Ollama model {selected_model} returned no text.")
+        raise ScriptwriterUnavailable("OmniRoute API key not configured (OMNIROUTE_API_KEY is missing).")
+
     if output_path:
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)

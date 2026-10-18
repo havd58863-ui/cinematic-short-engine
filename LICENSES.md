@@ -13,6 +13,6 @@ Before monetized publication, review the current model card and terms for the ex
 - IP-Adapter weights: https://huggingface.co/h94/IP-Adapter
 - Pixabay Content License summary: https://pixabay.com/service/license-summary/
 - Pexels license: https://www.pexels.com/license/
-- DDGS, Trafilatura, pytrends, Whisper, Diffusers, FFmpeg, and Ollama each retain their own software licenses.
+- DDGS, Trafilatura, pytrends, Whisper, Diffusers, FFmpeg, and OmniRoute API each retain their own software or service licenses.
 
 The pipeline records model IDs and fallback methods. It does **not** claim it has legally certified any model or asset for commercial use. Review the current terms when running the notebook; model-card and service terms can change. Stock fallback assets include creator/source URLs so they can be audited. Do not redistribute stock images as a standalone asset pack.

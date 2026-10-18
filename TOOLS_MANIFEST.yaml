@@ -29,17 +29,13 @@ research:
     role: discover publicly indexed example videos/pages; omit unverified performance metrics
 scriptwriting:
   primary_adapter:
-    name: SCRIPTWRITER_COMMAND adapter
+    name: OmniRoute Gateway / SCRIPTWRITER_COMMAND adapter
     path: director/scriptwriter_adapter.py
-    role: invoke an existing scriptwriting workflow when explicitly configured
+    role: text generation and structured output via OmniRoute API or custom scriptwriting command
+    endpoint: https://omniroute.online/v1/chat/completions
+    model: gpt-4o-mini
     command_contract: "command --prompt-file PATH --output-file PATH"
-    note: no legacy scriptwriter lives in the freshly initialized project; use Ollama fallback unless configured
-  fallback:
-    name: Ollama
-    repository: https://github.com/ollama/ollama
-    model: qwen2.5:3b-instruct
-    role: script generation, research-grounded candidate drafting, structured storyboard JSON
-    note: model download and runtime availability must be verified in Colab
+    note: uses OMNIROUTE_API_KEY when configured; falls back to deterministic script/storyboard builders when offline
 story_analysis:
   path: director/script_analysis.py
   role: word count, speech-duration estimates, paragraph extraction, rule-based pacing diagnostics

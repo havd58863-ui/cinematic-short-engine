@@ -20,7 +20,7 @@ class Settings(BaseModel):
     tts_language_code: str = "a"
     tts_speed: float = Field(default=1.0, ge=0.5, le=1.5)
     whisper_model: str = "base.en"
-    ollama_model: str = "qwen2.5:3b-instruct"
+    omniroute_model: str = "gpt-4o-mini"
     output_root: Path = Path("jobs")
     model_cache_root: Path = Path("model_cache")
     research_max_results: int = Field(default=6, ge=1, le=20)
@@ -72,7 +72,7 @@ class Settings(BaseModel):
             target_region=os.getenv("RESEARCH_REGION", "us-en"),
             video_seconds=int(os.getenv("DEFAULT_VIDEO_SECONDS", "45")),
             enable_real_image_to_video=os.getenv("ENABLE_REAL_IMAGE_TO_VIDEO", "true").lower() == "true",
-            ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:3b-instruct"),
+            omniroute_model=os.getenv("OMNIROUTE_MODEL", "gpt-4o-mini"),
             output_root=Path(os.getenv("TIKTOK_OUTPUT_ROOT", "jobs")),
             model_cache_root=Path(os.getenv("TIKTOK_MODEL_CACHE", "model_cache")),
             tts_voice=os.getenv("KOKORO_VOICE", "af_heart"),
