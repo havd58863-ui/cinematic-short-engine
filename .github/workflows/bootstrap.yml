@@ -1,3 +1,4 @@
+
 name: Bootstrap clean rebuild
 
 on:
@@ -17,12 +18,14 @@ jobs:
       - name: Replace repository content with new-system.zip
         run: |
           set -euo pipefail
-          if [ ! -f new-system.zip ]; then
-            echo "::error::new-system.zip is missing at the repository root. Upload it first, then run again."
+          ZIP=$(ls new-system*.zip 2>/dev/null | head -n 1 || true)
+          if [ -z "$ZIP" ]; then
+            echo "::error::No new-system*.zip found at the repository root. Upload it first, then run again."
             exit 1
           fi
+          echo "Using archive: $ZIP"
           rm -rf /tmp/newsystem && mkdir -p /tmp/newsystem
-          unzip -oq new-system.zip -d /tmp/newsystem
+          unzip -oq "$ZIP" -d /tmp/newsystem
           # Safety: the archive must look like our engine, not an arbitrary zip.
           test -f /tmp/newsystem/pyproject.toml
           test -f /tmp/newsystem/config/toolchain.yaml
