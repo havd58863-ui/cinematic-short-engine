@@ -1,0 +1,28 @@
+# Voice profiles — primary engine: Gemini TTS (owner decision). Profiles lock ONLY after live audition + owner approval.
+engines:
+  gemini_tts:
+    # The first live run probes which TTS model answers on the owner's key, in this order, then locks it per account.
+    model_probe_order: [gemini-3.8-flash-tts, gemini-3.1-flash-tts-preview]
+    control:
+      - "voice_name (30 prebuilt voices; male candidates auditioned: Charon, Orus, Fenrir, Iapetus, Enceladus, Umbriel, Algenib, Rasalgethi, Alnilam, Schedar)"
+      - "turn-level style: speech_metadata.style (3.8 family) OR concise director instruction prefix (3.1 family)"
+      - "inline vocal tags inside the text: <short pause>, <sigh>, ... plus punctuation-driven micro-pauses from the script's performance cues"
+      - "language_code + verbatim transcript (no instructions mixed into spoken text on 3.8)"
+    synthesis_unit: scene        # synthesize whole scenes, not isolated short lines (natural prosody)
+  kokoro:
+    role: emergency_fallback_only   # activated only with owner Telegram approval (announced fallback policy)
+    version: "0.9.4"
+account_01:
+  engine: gemini_tts
+  model: null            # set by live probe
+  voice_name: null       # set by owner audition (Telegram samples of the candidates)
+  language: en
+  style: "Deep, mature, controlled and cinematic. Warm low-mid body, slightly intimate. Conversational authority, never an announcer. Deliberate pacing with micro-pauses before realizations; contained tension and restraint."
+  fallback: {engine: kokoro, voice_name: am_michael, speed: 0.97}
+account_02:
+  engine: gemini_tts
+  model: null
+  voice_name: null
+  language: en
+  style: "Warm, deep, literary storyteller. Calm and intimate, emotionally intelligent. Story-driven pacing with gentle pauses after discoveries; tender rather than melodramatic."
+  fallback: {engine: kokoro, voice_name: am_fenrir, speed: 0.96}

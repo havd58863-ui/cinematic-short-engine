@@ -1,0 +1,15 @@
+{
+  "name": "OpenMontage",
+  "repository": "https://github.com/calesthio/OpenMontage.git",
+  "commit": "c8066452325cb57c8fc1ba8c2a71b6e8842e6b65",
+  "upstream_commit_date": "2026-10-16",
+  "license": "AGPL-3.0",
+  "verified_on": "2026-10-20",
+  "verification": {
+    "python": "3.12.15",
+    "requirements": "requirements/locks/openmontage.txt",
+    "compileall": "passed for tools and schemas",
+    "selected_tests": "306 passed",
+    "remotion": "npm ci passed; TypeScript --noEmit passed"
+  }
+}

@@ -1,35 +1,101 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=75", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tiktok-ai-director"
-version = "0.2.0"
-description = "Resource-aware, resumable open-source TikTok research, scripting, storyboard, generation, rendering and QA pipeline"
-requires-python = ">=3.10"
+name = "cinematic-short-engine"
+version = "0.1.0"
+description = "Two-account cinematic TikTok production engine (DNA-driven, gated workflow)"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-  "pydantic>=2.7,<3",
-  "Pillow>=10.0",
-  "psutil>=5.9",
+  "httpx==0.28.1",
+  "jsonschema>=4.23,<5",
+  "prefect==3.8.8",
+  "pydantic==2.14.1",
+  "python-dotenv>=1.0,<2",
+  "pyyaml>=6.0.2,<7",
 ]
 
 [project.optional-dependencies]
-research = ["ddgs>=9.0", "trafilatura>=1.9", "pytrends>=4.9.2"]
-images = ["diffusers>=0.32,<0.38", "transformers>=4.44", "accelerate>=0.33", "safetensors>=0.4"]
-voice = ["kokoro>=0.9", "soundfile>=0.12", "numpy>=1.26"]
-subtitles = ["openai-whisper>=20240930"]
-test = ["pytest>=8.0"]
-kinocut = ["kinocut==1.16.1"]
-all = ["ddgs>=9.0", "trafilatura>=1.9", "pytrends>=4.9.2", "diffusers>=0.32,<0.38", "transformers>=4.44", "accelerate>=0.33", "safetensors>=0.4", "kokoro>=0.9", "soundfile>=0.12", "numpy>=1.26", "openai-whisper>=20240930", "pytest>=8.0", "psutil>=5.9"]
+providers = [
+  "google-genai==2.31.0",
+  "reactor-sdk==1.10.0",
+]
+research = [
+  "feedparser==6.0.14",
+  "trendspy==0.1.6",
+  "yt-dlp==2026.8.19",
+]
+writing = [
+  "screenplain==0.12.0",
+  "language-tool-python==3.4.0",
+  "ollama==0.6.3",
+  "textstat==0.7.13",
+]
+ml = [
+  "torch>=2.2",
+  "bertopic==0.17.4",
+  "keybert==0.9.0",
+  "sentence-transformers==6.1.0",
+]
+media = [
+  "moviepy==2.2.1",
+  "opencv-python-headless==5.0.0.93",
+  "Pillow>=10,<13",
+  "scenedetect-headless==0.7.2",
+]
+audio = [
+  "faster-whisper==1.2.1",
+  "pedalboard==0.9.26",
+  "pyloudnorm==0.2.0",
+  "soundfile>=0.12,<1",
+]
+align = [
+  "torch~=2.8.0",
+  "torchaudio~=2.8.0",
+  "torchvision~=0.23.0",
+  "whisperx==3.8.6",
+]
+subtitles = [
+  "arabic-reshaper==3.0.1",
+  "python-bidi==0.6.12",
+]
+bot = [
+  "python-telegram-bot==22.8",
+]
+voice-fallback = [
+  "torch>=2.2",
+  "kokoro==0.9.4",
+  "soundfile>=0.12,<1",
+]
+dev = [
+  "pytest>=8,<10",
+  "ruff>=0.6,<1",
+]
 
 [project.scripts]
-tiktok-director = "tiktok_director.cli:main"
+cinematic-engine = "engine.cli:main"
 
-[tool.setuptools]
-packages = ["research", "director", "generation", "editing", "tiktok_director", "tools"]
-package-dir = {"" = ".", "tiktok_director" = "src/tiktok_director"}
-include-package-data = true
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }

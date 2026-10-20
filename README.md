@@ -1,58 +1,37 @@
-# Cinematic Short Engine — Open-source TikTok AI Director
+# Cinematic Short Engine
 
-A reusable, resumable TikTok video-production pipeline for Google Colab + Google Drive. The default output is American English, US audience, vertical 9:16 H.264 MP4.
+نظام إنتاج فيديوهات TikTok سينمائية لحسابين بهويتين منفصلتين، يعمل بمراحل متعاقدة الأنواع وبوابات جودة وموافقات بشرية من Telegram. الهاتف للتحكم فقط؛ العمل الثقيل يعمل في GitHub Actions أو حاويات Docker الجاهزة.
 
-## Production stages and actual tool assignments
+## الحسابان
 
-| Stage | Tool / model | Role |
-|---|---|---|
-| Trend entry point | [TikTok Creative Center](https://ads.tiktok.com/creative/creativeCenter/trends) | Official trend source where accessible; does not assume unrestricted API access |
-| Research | [DDGS](https://github.com/deedy5/ddgs), [Trafilatura](https://github.com/adbar/trafilatura) | Public search, article extraction and source provenance |
-| Optional search signal | [pytrends](https://github.com/GeneralMills/pytrends) | Google search-interest only, never TikTok performance data |
-| Script | OmniRoute API (`https://omniroute.online/`) or custom writer adapter | Coherent script with hook, escalation, payoff; deterministic fallback when offline |
-| Director/storyboard | Pydantic v2 + OmniRoute structured JSON | Timed shots, positive/negative prompts, camera and motion, visual identity, sound, subtitles, paths |
-| Image generation | [Diffusers](https://github.com/huggingface/diffusers) + `stabilityai/stable-diffusion-xl-base-1.0` | Generate a unique image for each shot; lower-memory SD 1.5 fallback is explicit |
-| Reference consistency | [IP-Adapter](https://github.com/tencent-ailab/IP-Adapter) through Diffusers | Optional image conditioning when a compatible reference file exists and weights load |
-| Real image-to-video | Diffusers + Wan 2.1 I2V only with >=48 GB VRAM and >=100 GB free model-cache storage, or Stable Video Diffusion XT with >=12 GB VRAM | Neural motion; exact method/model is recorded per shot |
-| Video fallback | FFmpeg image animation | Real pan/zoom animation, explicitly labelled `ffmpeg_animation` — not neural video |
-| Voice | [Kokoro-82M](https://github.com/hexgrad/kokoro), `af_heart` | Text-to-speech, no user audio upload required |
-| Subtitle timing | [Whisper](https://github.com/openai/whisper) | Transcribe actual generated audio, write SRT + ASS |
-| Rendering/mix/validation | [FFmpeg](https://github.com/FFmpeg/FFmpeg) + `ffprobe` | 1080×1920 MP4, caption burn-in, audio mix and technical validation |
-| Optional low-resource stills | Pixabay/Pexels APIs in `generation/stock_images.py` | Only if configured with a provider key; recorded as stock, never called AI-generated |
-| Edit integration candidate | [Kinocut](https://github.com/KyaniteLabs/kinocut) | Not on the critical path until CLI/API compatibility is actually verified |
+1. **Cinematic Psychology** — تعرف نفسي، آلية مفسرة، استعارة بصرية سينمائية.
+2. **Cinematic Nostalgic Storytelling** — قصص دافئة ذات دهشة وحنين وعوالم وشخصيات ثابتة.
 
-See `TOOLS_MANIFEST.yaml` for each module, model URL, role, hardware gate and licensing caveat.
+ملفا الهوية في `config/accounts/`، وقواعد الصوت والجودة والأدوار في `config/`. لا يبدأ أي توليد قبل نجاح `validate-config` وفصل الهويتين برمجيًا.
 
-## One-time setup in Colab
+## القواعد المؤسسية
 
-1. Open `notebook/run_pipeline.ipynb` in Google Colab.
-2. Choose a GPU runtime if available (Runtime → Change runtime type → T4 GPU). Neural video generation is optional and depends on actual VRAM.
-3. Run all notebook cells. It mounts Drive, clones the repository (a private repository requires a `GITHUB_TOKEN` Colab Secret), installs Python dependencies without blindly replacing Colab's Torch build, and configures the OmniRoute API key (`OMNIROUTE_API_KEY`).
-4. In the job cell, leave `TOPIC = None` to research and rank candidate topics, enter a topic to research it, or supply `SCRIPT_TEXT`/`SCRIPT_FILE` to preserve a script. Set `RESUME_JOB` to an existing job ID to resume cached stages.
-5. Find artifacts in `Google Drive/TikTokAIDirector/jobs/JOB_ID/`.
+- كتابة السكريبت والإخراج والمونتاج الفكري بنماذج مفتوحة الأوزان عبر Ollama، ومهارات OpenMontage المُكيفة مع DNA.
+- Gemini مخصص للصوت TTS والإطارات المرجعية فقط، وليس لكتابة السكريبت.
+- Reactor/Helios محرك المشاهد الأساسي، ولا يُستبدل بصمت؛ أي بديل يحتاج موافقة صريحة من المالك.
+- كل مشهد وانتقال وموسيقى ومؤثر يجب أن يحمل حقل `why` ووظيفة سردية، وإلا ترفضه العقود.
+- OpenMontage مثبت عند Commit دقيق في `vendor/openmontage.lock.json` ويُجلب آليًا بلا نسخ 161MB داخل تاريخ Git.
+- الاعتماديات مقسمة لصور/بيئات متخصصة؛ التثبيت يتم عند بناء الصور مرة واحدة، ثم تعمل الإنتاجات من أقفال دقيقة.
 
-Optional Pixabay/Pexels credentials can be added under Colab Secrets as `PIXABAY_API_KEY` and/or `PEXELS_API_KEY`. They are not mandatory for the main image model, but can supply disclosed stock-image fallbacks if diffusion cannot run. Never commit API keys.
-
-## Local installation
-
-Use Python 3.10+ and install FFmpeg separately. Install a Torch build compatible with your compute environment before the optional model dependencies.
+## التحقق المحلي للأساس
 
 ```bash
-python -m pip install -e . --no-deps
-python -m pip install -r requirements-colab.txt
-pytest -q
-python -m tiktok_director.cli --env-check
-python -m tiktok_director.cli --topic "Your topic" --plan-only
+make setup
+make validate
+make test
+make lint
+make fetch-openmontage
 ```
 
-The complete render can be run with `python -m tiktok_director.cli --topic "Your topic"` when `OMNIROUTE_API_KEY` and the required generation dependencies/models are available. For automatic topic selection, omit `--topic`.
+تقرير فحص الأدوات الكامل: `docs/TOOL_VERIFICATION_AR.md`.
 
-## Resume and outputs
+وثيقة الرؤية والمراحل: `docs/SYSTEM_BLUEPRINT_AR.md`.
 
-Each job has a unique ID. Assets and `run_manifest.json` persist per stage. The pipeline verifies cached image fingerprints, preserves completed artifacts after an error, records failure state, and can resume with `--resume JOB_ID`.
+## الأسرار
 
-Output tree includes research evidence, ranked ideas, competitor examples, script, script analysis, validated storyboard, continuity report, image report, narration segments, combined narration, SRT/ASS captions, per-shot MP4s, final `final_video.mp4`, `quality_report.json`, and `quality_report.md`.
-
-## Important reliability limits
-
-No software system can guarantee zero errors in every network, model and Colab session. This code uses preflight checks, validation, explicit fallbacks and stage-specific reports. A successful FFmpeg animation does not mean neural image-to-video succeeded. TikTok metrics are not invented when Creative Center access is blocked. A model/API stage that is not installed or compatible fails with a useful report instead of a fake output. Model licenses and commercial rights must be reviewed separately; see `LICENSES.md`.
+لا تضع أي مفتاح داخل ملف في المستودع. القيم الحقيقية تُوضع في GitHub Secrets أو ملف `.env` محلي غير ملتزم. أمر `doctor` يطبع وجود السر فقط ولا يطبع قيمته.

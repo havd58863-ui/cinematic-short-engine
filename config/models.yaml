@@ -1,0 +1,23 @@
+# Open-weight LLM policy. Production model IDs stay null until benchmarked on the real runner.
+# The 0.5B model below proved only that Ollama + structured JSON works; it is forbidden for production scripts.
+ollama:
+  base_url_env: OLLAMA_BASE_URL
+  smoke_only_model: "qwen2.5:0.5b@sha256:a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67"
+  production_candidates:
+    writer: []
+    retention_editor: []
+    scene_editor: []
+    director: []
+    editor: []
+  selected: null
+  selection_gate:
+    - "Benchmark on the actual GitHub Actions CPU runner, not a developer workstation."
+    - "Generate blind samples for both accounts from the same briefs."
+    - "Score English quality, JSON obedience, DNA fidelity, speed and peak RAM."
+    - "Reject any model that cannot reliably emit the locked schemas after bounded retries."
+    - "Pin the winning model by digest, never by a moving latest tag."
+  generation_defaults:
+    format: json
+    temperature: 0.35
+    seed_policy: "Fixed per run and recorded in provenance."
+    max_retries: 2

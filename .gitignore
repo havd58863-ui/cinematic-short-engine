@@ -1,25 +1,30 @@
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.venv/
-venv/
+# Secrets and local runtime state
 .env
-.env.*
-!.env.example
-secrets.json
-jobs/
-model_cache/
-outputs/
+*.pem
+*.key
+runs/
+artifacts/
+models/
+
+# Python / Node build products
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+.venv-openmontage/
+.cache/
+node_modules/
+dist/
+build/
+*.egg-info/
+
+# Fetched third-party checkout. The exact source is pinned in vendor/openmontage.lock.json.
+vendor/openmontage/
+
+# Generated media outside curated demo assets
 *.mp4
 *.mov
 *.mkv
 *.wav
 *.mp3
-*.flac
-*.png
-*.jpg
-*.jpeg
-*.safetensors
-*.ckpt
-*.bin
-huggingface/
+!assets/**/*.mp4

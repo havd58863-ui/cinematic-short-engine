@@ -1,0 +1,17 @@
+# Professional roles — every stage passes through sub-stages: produce -> critique -> validate -> (owner approval where marked)
+engine: open_weight_llm_via_ollama   # Gemini is NOT used for writing/directing; only TTS + reference keyframes (owner rule)
+steps_pattern: [produce, critique_by_second_role, schema_validate, dna_validate, owner_approval_if_marked]
+roles:
+  research_director:   {skill_source: openmontage/cinematic/research-director (adapted), job: "Frame the idea search per account DNA"}
+  idea_analyst:        {job: "SEO signals + saturation/novelty scoring brief"}
+  proposal_director:   {skill_source: openmontage/cinematic/proposal-director (adapted), job: "One winning concept with written why"}
+  script_director:     {skill_source: openmontage/cinematic/script-director (adapted), job: "Beat map first, then lines; DNA structure per account"}
+  retention_editor:    {job: "Second-model polish: hook <=3s, open loop, 3-6s renewals, midpoint turn, sticky final line; numeric rubric"}
+  language_editor:     {tools: [languagetool, textstat], job: "Grammar/style + spoken-weight of sentences + performance cues"}
+  scene_director:      {skill_source: openmontage/cinematic/scene-director (adapted), job: "SCENE EDITOR: hero frames + per-beat shot size/angle/lens/movement/lighting with a stated WHY — before any generation"}
+  director_showrunner: {skill_source: openmontage/cinematic/executive-producer (adapted), job: "DIRECTOR: approves script->visual translation, continuity and DNA fidelity; owns send-backs"}
+  asset_director:      {skill_source: openmontage/cinematic/asset-director (adapted), job: "Prompts, reference frames, Reactor sessions, stock fallback corpus"}
+  edit_director:       {skill_source: openmontage/cinematic/edit-director (adapted), job: "EDITOR (monteur): EDL where every cut/transition/effect carries a narrative function; pacing map"}
+  compose_director:    {skill_source: openmontage/cinematic/compose-director (adapted), job: "Final compose, subtitles, grade, mix supervision"}
+  sound_designer:      {job: "Voice performance direction (Gemini TTS profile), music choice with WHY, SFX spots with WHY, silence placement"}
+  qa_reviewer:         {skill_source: openmontage/meta/reviewer (adapted), job: "Gatekeeping vs quality_gates.yaml; severities per DNA section 12"}

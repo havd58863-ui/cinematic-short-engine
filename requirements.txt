@@ -1,4 +1,0 @@
-# Core dependencies for local CPU tests; model-generation packages are in requirements-colab.txt.
-pydantic==2.11.7
-Pillow==11.3.0
-psutil==7.0.0

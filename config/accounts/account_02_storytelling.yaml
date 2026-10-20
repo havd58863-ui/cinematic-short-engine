@@ -1,0 +1,53 @@
+# Account 02 — Cinematic Nostalgic Storytelling  (source: MASTER_DNA v1.0 sections 7-10)
+id: account_02_storytelling
+name: Cinematic Nostalgic Storytelling
+identity_line: "Stories children can love — and adults can remember."
+emotional_core: [wonder, nostalgia]
+contract: "Family viewing without becoming preschool-only. Every story leaves a question, feeling, image, or memory after the final shot."
+language:
+  voice: en
+  on_screen: en
+  bilingual_option: "One EN line + one accurate AR line directly underneath when a bilingual version is produced."
+story_pillars: [adventure, mystery, emotion, magic, comedy, nostalgia]
+story_formula: [curiosity, wonder, nostalgia, emotion, payoff]
+opening_patterns:
+  - "Every night at exactly 11:47..."
+  - "Nobody in the village knew why..."
+  - "He found something that had been missing for thirty years..."
+  - "The old station had been closed for decades. Until one winter night..."
+story_progression: [cold_open, question, journey, discovery, emotional_turn, payoff, after_image]
+visual:
+  master_language: "Cinematic storybook realism — tactile, believable worlds with a gentle sense of wonder."
+  ai_first: true   # stock footage is NOT a basis for this account (DNA section 8)
+  world_library: [old_english_village, london_like_street, forest, railway_station_steam_train, library, seaside_town, small_american_town, school, snowy_village, attic, bedroom_at_night]
+  world_rules:
+    era_feel: "Cohesive architecture, props, clothing, technology."
+    lighting: "Golden practicals, dawn/dusk, candlelight, moonlight, soft window light."
+    palette: "Warm nostalgic highlights; cool mystery accents when needed."
+    character_consistency: "Face, age, hair, clothes, proportions, mannerisms stable across scenes."
+    prop_continuity: "Objects stay logically placed; may become story anchors."
+    geography: "Doors/streets/rooms/landmarks/screen direction consistent."
+    weather_time: "Same scene state across adjacent clips unless story changes it deliberately."
+    camera: "Motivated, cinematic, story-serving; not spectacle for its own sake."
+  variation_rule: "Do not repeat the same world/template daily. Cinematography + nostalgia + warmth are the constants."
+bibles:
+  character_bible_fields: [name_role, age_range, face_and_hair, body_proportions, clothing_by_scene, mannerisms, voice_emotional_behavior, reference_image_id]
+  world_bible_fields: [location_era, architecture, palette, lighting_logic, weather, geography_landmarks, recurring_props, ambient_sound, camera_language]
+voice:
+  profile_ref: voices.yaml#account_02
+  identity: "Male; warm; deep; literary storyteller. Calm, intimate, emotionally intelligent. Pauses after discoveries. Tender, never melodramatic."
+music:
+  style: "Storybook cinematic: wonder, mystery, nostalgic orchestral textures."
+  sfx_allowed: [train, footsteps, pages, doors, rain, wind, room_tone, distant_environment]
+length:
+  primary_range_seconds: [75, 120]
+  rule: "Only when the story earns it. Never add dead scenes to lengthen."
+continuity_gate:
+  - "Character face stable; wardrobe matches previous scene."
+  - "Object placement logical; screen direction does not reverse without narrative reason."
+  - "Lighting direction and grade match; weather/time match; physical actions continue."
+  - "No obvious AI deformation, extra fingers, floating objects, warped text, unstable facial features."
+cross_account_forbidden:
+  - "No psychology-lesson structure or mechanism explanation as core (Account 1 territory)."
+  - "No controlled 'cinematic educator' voice."
+  - "No abstract metaphor landscapes replacing story worlds."

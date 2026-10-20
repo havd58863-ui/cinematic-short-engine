@@ -1,0 +1,244 @@
+schema_version: 1
+verified_on: "2026-10-20"
+python:
+  required: "3.12"
+  verified_patch_version: "3.12.15"
+  base_image: "python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258"
+external_images:
+  ollama: "ollama/ollama:0.40.6@sha256:265409e1d931028a8f7d5a32bcbafddd7bffbc6cc629d77efe9560adf692a5e7"
+  languagetool: "erikvl87/languagetool:6.8@sha256:ef8fa12cbd485166c9ceeb7139d76d56d07707a624da6bb1fc1fbb5411750527"
+  n8n_optional: "n8nio/n8n:2.45.0@sha256:2797383b01f762e0659278309c317d9f80301b6941a749faebfc52939d8b6c3d"
+  node: "node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0"
+status_values:
+  - verified_local_install_and_smoke
+  - verified_local_install_and_import
+  - verified_resolution
+  - verified_official_image_manifest
+  - verified_upstream_tests
+  - needs_live_key
+  - platform_service
+tools:
+  - id: prefect
+    name: Prefect
+    stage: orchestration
+    role: "Durable tasks, retries, state and resumption inside each production run"
+    version: "3.8.8"
+    license: Apache-2.0
+    install: {mode: python_lock, lock: requirements/locks/core.txt}
+    python_modules: [prefect]
+    verification: {status: verified_local_install_and_smoke, evidence: "A real flow completed locally; also imports under Python 3.12."}
+  - id: github_actions
+    name: GitHub Actions
+    stage: orchestration
+    role: "Free scheduled/manual cloud execution and Docker image builds for the public repository"
+    version: platform
+    license: platform
+    install: {mode: github_platform}
+    verification: {status: platform_service, evidence: "Configured by .github/workflows; first green run is the post-push acceptance gate."}
+  - id: pydantic
+    name: Pydantic
+    stage: contracts
+    role: "Typed JSON contracts between every stage"
+    version: "2.14.1"
+    license: MIT
+    install: {mode: python_lock, lock: requirements/locks/core.txt}
+    python_modules: [pydantic]
+    verification: {status: verified_local_install_and_import, evidence: "Imported in isolated Python 3.12 environment."}
+  - id: trendspy
+    name: TrendsPy
+    stage: research_seo
+    role: "Google Trends demand velocity"
+    version: "0.1.6"
+    license: MIT
+    install: {mode: python_lock, lock: requirements/locks/core.txt}
+    python_modules: [trendspy]
+    verification: {status: verified_local_install_and_smoke, evidence: "Live 7-day interest query returned 169 rows during verification."}
+  - id: feedparser
+    name: feedparser
+    stage: research_sources
+    role: "RSS and news-source ingestion"
+    version: "6.0.14"
+    license: BSD-2-Clause
+    install: {mode: python_lock, lock: requirements/locks/core.txt}
+    python_modules: [feedparser]
+    verification: {status: verified_local_install_and_smoke, evidence: "Parsed a live Google News RSS response with 100 entries."}
+  - id: yt_dlp
+    name: yt-dlp
+    stage: competitor_patterns
+    role: "Metadata-only adjacent-platform pattern research"
+    version: "2026.8.19"
+    license: Unlicense
+    install: {mode: python_lock, lock: requirements/locks/core.txt}
+    python_modules: [yt_dlp]
+    verification: {status: verified_local_install_and_smoke, evidence: "Live flat search metadata query succeeded without downloading media."}
+  - id: sentence_transformers
+    name: Sentence Transformers
+    stage: idea_analysis
+    role: "Semantic novelty and saturation embeddings"
+    version: "6.1.0"
+    license: Apache-2.0
+    install: {mode: python_lock, lock: requirements/locks/ml.txt, image_group: ml}
+    python_modules: [sentence_transformers]
+    verification: {status: verified_local_install_and_import, evidence: "Installed with CPU PyTorch 2.14.1+cpu and imported under Python 3.12."}
+  - id: bertopic
+    name: BERTopic
+    stage: idea_analysis
+    role: "Topic clustering of harvested demand signals"
+    version: "0.17.4"
+    license: MIT
+    install: {mode: python_lock, lock: requirements/locks/ml.txt, image_group: ml}
+    python_modules: [bertopic]
+    verification: {status: verified_local_install_and_import, evidence: "Imported with UMAP/HDBSCAN in the isolated ML environment."}
+  - id: keybert
+    name: KeyBERT
+    stage: idea_analysis
+    role: "Keyword and phrase extraction"
+    version: "0.9.0"
+    license: MIT
+    install: {mode: python_lock, lock: requirements/locks/ml.txt, image_group: ml}
+    python_modules: [keybert]
+    verification: {status: verified_local_install_and_import, evidence: "Imported in the isolated ML environment."}
+  - id: ollama
+    name: Ollama
+    stage: writing_and_directing
+    role: "Serves open-weight LLMs for writer, retention editor, scene editor, director and editor roles"
+    version: "0.40.6"
+    license: MIT
+    install: {mode: docker_image, image_ref: external_images.ollama}
+    python_modules: [ollama]
+    binaries: [ollama]
+    verification: {status: verified_local_install_and_smoke, evidence: "Official standalone binary ran locally; served qwen2.5:0.5b and returned parseable JSON. Tiny model proved mechanics only; production model requires benchmark."}
+  - id: languagetool
+    name: LanguageTool
+    stage: script_polish
+    role: "Self-hosted English grammar and style server"
+    version: "6.8 image; 6.6 locally executed"
+    license: LGPL-2.1-or-later
+    install: {mode: docker_image, image_ref: external_images.languagetool}
+    python_modules: [language_tool_python]
+    verification: {status: verified_local_install_and_smoke, evidence: "Official standalone server ran locally and returned three grammar matches through /v2/check."}
+  - id: screenplain
+    name: Screenplain
+    stage: script_format
+    role: "Fountain screenplay parsing and human-readable script exports"
+    version: "0.12.0"
+    license: MIT
+    install: {mode: python_lock, lock: requirements/locks/core.txt}
+    python_modules: [screenplain]
+    verification: {status: verified_local_install_and_smoke, evidence: "Converted a Fountain sample to HTML in Python 3.12."}
+  - id: openmontage
+    name: OpenMontage
+    stage: production_knowledge_and_tools
+    role: "Vendored cinematic playbooks, role skills, schemas and selected tools"
+    version: "commit c8066452325cb57c8fc1ba8c2a71b6e8842e6b65"
+    license: AGPL-3.0
+    install: {mode: pinned_vendor_fetch, lock: vendor/openmontage.lock.json}
+    verification: {status: verified_upstream_tests, evidence: "Installed requirements-dev in Python 3.12; compileall passed; 306 selected contract/style tests passed."}
+  - id: remotion
+    name: Remotion
+    stage: graphics_and_transitions
+    role: "OpenMontage cinematic graphics, captions and transition compositions"
+    version: "4.0.484"
+    license: "Remotion License (source-available; confirm eligibility for the operating entity)"
+    install: {mode: npm_lock_in_openmontage, lock: vendor/openmontage/remotion-composer/package-lock.json}
+    binaries: [node, npm]
+    verification: {status: verified_local_install_and_smoke, evidence: "npm ci installed 201 packages and TypeScript compilation passed. Browser render is a Docker/CI acceptance test."}
+  - id: reactor_sdk
+    name: Reactor SDK / Helios
+    stage: video_generation
+    role: "Primary continuous cinematic scene generation"
+    version: "1.10.0"
+    license: "Vendor service SDK"
+    install: {mode: python_lock, lock: requirements/locks/core.txt}
+    python_modules: [reactor_sdk]
+    verification: {status: needs_live_key, evidence: "SDK installed and imports; prior source-level contract review completed. Live generation must pass the owner-key smoke test before production."}
+  - id: google_genai
+    name: Google GenAI SDK
+    stage: voice_and_keyframes
+    role: "Gemini TTS and reference keyframes only; not script writing"
+    version: "2.31.0"
+    license: Apache-2.0
+    install: {mode: python_lock, lock: requirements/locks/core.txt}
+    python_modules: [google.genai]
+    verification: {status: needs_live_key, evidence: "SDK installed and a client object was constructed with a dummy key. Model availability and TTS voices require the owner-key probe."}
+  - id: ffmpeg
+    name: FFmpeg + libass
+    stage: editing_and_render
+    role: "Deterministic editing, transitions, filters, subtitles and final encode"
+    version: "7.x tested locally; Debian package in Docker"
+    license: "LGPL/GPL depending on build"
+    install: {mode: apt_in_docker}
+    binaries: [ffmpeg, ffprobe]
+    verification: {status: verified_local_install_and_smoke, evidence: "Local FFmpeg 7.0.2 rendered test media, xfade and ASS filter availability were confirmed."}
+  - id: moviepy_opencv_scenedetect
+    name: MoviePy + OpenCV + PySceneDetect
+    stage: media_analysis_and_edit_helpers
+    role: "Media helpers, frame analysis and scene-boundary support"
+    version: "MoviePy 2.2.1; OpenCV 5.0.0.93; PySceneDetect 0.7.2"
+    license: "MIT / Apache-2.0 / BSD-3-Clause"
+    install: {mode: python_lock, lock: requirements/locks/media.txt, image_group: media}
+    python_modules: [moviepy, cv2, scenedetect]
+    verification: {status: verified_local_install_and_import, evidence: "All imported under Python 3.12. Dissolve calibration remains a QA implementation task."}
+  - id: pedalboard_pyloudnorm
+    name: Pedalboard + PyLoudnorm
+    stage: audio_mastering
+    role: "Single-bus studio mastering and LUFS measurement"
+    version: "Pedalboard 0.9.26; PyLoudnorm 0.2.0"
+    license: "GPL-3.0 / MIT"
+    install: {mode: python_lock, lock: requirements/locks/media.txt, image_group: media}
+    python_modules: [pedalboard, pyloudnorm]
+    verification: {status: verified_local_install_and_smoke, evidence: "Imported and used to measure a local render at -22.02 LUFS during smoke testing."}
+  - id: faster_whisper
+    name: faster-whisper
+    stage: transcription_qa
+    role: "Speech read-back verification and timing foundation"
+    version: "1.2.1"
+    license: MIT
+    install: {mode: python_lock, lock: requirements/locks/media.txt, image_group: media}
+    python_modules: [faster_whisper]
+    verification: {status: verified_local_install_and_import, evidence: "Imported; model download and transcription benchmark belong to the audio-stage acceptance test."}
+  - id: whisperx
+    name: WhisperX
+    stage: word_alignment
+    role: "Word-level alignment for subtitles"
+    version: "3.8.6"
+    license: BSD-2-Clause
+    install: {mode: python_lock, lock: requirements/locks/align.txt, image_group: align}
+    python_modules: [whisperx]
+    verification: {status: verified_local_install_and_import, evidence: "Installed isolated because it conflicts with the ML hub range; imports pass. TorchCodec requires Docker FFmpeg shared libraries."}
+  - id: kokoro
+    name: Kokoro
+    stage: voice_emergency_fallback
+    role: "Announced, owner-approved offline voice fallback only"
+    version: "0.9.4"
+    license: Apache-2.0
+    install: {mode: python_lock, lock: requirements/locks/voice-fallback.txt, image_group: voice-fallback}
+    python_modules: [kokoro]
+    binaries: [espeak-ng]
+    verification: {status: verified_local_install_and_import, evidence: "Installed with CPU PyTorch and KPipeline imported. Synthesis smoke belongs in the espeak-ng Docker image."}
+  - id: telegram_bot
+    name: python-telegram-bot
+    stage: owner_control
+    role: "Telegram notifications and production-side messages"
+    version: "22.8"
+    license: LGPL-3.0
+    install: {mode: python_lock, lock: requirements/locks/core.txt}
+    python_modules: [telegram]
+    verification: {status: verified_local_install_and_import, evidence: "Imported under Python 3.12. Bot token is supplied later through secrets."}
+  - id: n8n_optional
+    name: n8n
+    stage: optional_visual_automation
+    role: "Future visual automation layer when a 24/7 host exists; not the production core"
+    version: "2.45.0"
+    license: "Sustainable Use License (source-available, not OSI open source)"
+    install: {mode: docker_image_optional_profile, image_ref: external_images.n8n_optional}
+    verification: {status: verified_official_image_manifest, evidence: "Official Docker image tag and amd64 digest verified; service is disabled unless the automation Compose profile is selected."}
+rejected_after_testing:
+  - id: fountain_pypi
+    name: fountain 0.1.3
+    reason: "Installs but crashes on import under Python 3.12 because its regex uses LOCALE with a str pattern."
+    replacement: screenplain
+  - id: deepfilternet
+    name: DeepFilterNet 0.5.6
+    reason: "No CPython 3.12 wheel; source build requires Rust/Cargo and pins old NumPy/packaging ranges."
+    replacement: "FFmpeg speech filters plus Pedalboard/PyLoudnorm deterministic studio chain; re-evaluate only as an isolated Rust/older-Python service if measured noise requires it."

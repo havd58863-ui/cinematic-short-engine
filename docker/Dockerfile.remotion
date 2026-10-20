@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1.7
+FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+
+ENV NODE_ENV=production
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ca-certificates fonts-noto-core \
+       libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 libdrm2 \
+       libgbm1 libgtk-3-0 libnss3 libpango-1.0-0 libxcomposite1 \
+       libxdamage1 libxfixes3 libxkbcommon0 libxrandr2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Run scripts/fetch_openmontage.py before building this image.
+COPY vendor/openmontage/remotion-composer/package.json ./
+COPY vendor/openmontage/remotion-composer/package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+
+COPY vendor/openmontage/remotion-composer/tsconfig.json ./
+COPY vendor/openmontage/remotion-composer/src ./src
+COPY vendor/openmontage/remotion-composer/public ./public
+RUN chown -R node:node /app
+USER node
+RUN node_modules/.bin/tsc --noEmit \
+    && npx remotion browser ensure
+
+CMD ["node_modules/.bin/tsc", "--noEmit"]

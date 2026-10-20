@@ -1,0 +1,20 @@
+# Quality gates — a run never "silently downgrades". Fail = stop with a named reason (Telegram).
+technical:
+  resolution: [1080, 1920]
+  fps: 30                      # house standard (DNA section 12)
+  audio: {channels: 2, production_rate: 48000}
+  loudness_lufs_integrated: {target: -14.0, tolerance: 1.5}
+  true_peak_dbtp_max: -1.0     # engineering default under 'conservative peak control'
+  reject: [black_frames_unintended, frozen_segments_unintended, solid_color_frames, dead_silence_unintended]
+content:
+  hook_within_seconds: 3
+  wer_spoken_vs_script_max: 0.02     # WhisperX read-back must match the approved script
+  every_shot_needs_why: true        # EDL validator: narrative/psychological function required per element
+  every_effect_needs_why: true      # transition / SFX / music cue rejected without a stated function
+  account_dna_check: true           # cross-account forbidden lists enforced before generation
+severity:                           # DNA section 12
+  critical: "Wrong language, corrupted voice, major continuity failure, unreadable text, misleading claim -> DO NOT PUBLISH"
+  high: "Obvious AI artifacts, weak hook, dead middle, bad mix -> fix before publish"
+  medium: "Minor pacing/transition/grade issue -> fix if it affects polish"
+  low: "Micro imperfection with no audience impact -> log and move on"
+human_approvals: [idea, script, storyboard, voice_lock, final_video]

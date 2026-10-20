@@ -1,0 +1,55 @@
+# Account 01 — Cinematic Psychology  (source: MASTER_DNA v1.0 sections 2-6)
+id: account_01_psychology
+name: Cinematic Psychology
+core_promise: "Make the viewer recognize themselves before they realize they are learning."
+audience: "Mature adults; intelligent, psychologically curious, emotionally literate."
+language:
+  voice: en            # English-only voice (QA gate)
+  on_screen: en        # primary on-screen language
+  bilingual_option: "One EN line + one accurate AR line directly underneath. Never duplicate AR, never paragraphs."
+emotional_engines: [recognition, curiosity, tension, relief, self-awareness, controlled_fear, hope, reflection]
+content_pillars:
+  - {key: human_psychology, purpose: "Explain universal mechanisms", examples: [uncertainty, rejection, attention, perception]}
+  - {key: inner_psychology, purpose: "Make private mental patterns visible", examples: [overthinking, avoidance, self_doubt, attachment]}
+  - {key: social_behavior, purpose: "Decode interpersonal dynamics", examples: [silence, distance, boundaries, reciprocity]}
+  - {key: self_mastery, purpose: "Turn insight into agency", examples: [discipline, focus, decisions, emotional_control]}
+content_modes:
+  - {key: A_cinematic_reflective, tone: "poetic, intimate, atmospheric", visuals: "metaphorical landscapes + silhouettes"}
+  - {key: B_cinematic_educational_warning, tone: "dark, precise, intelligent", visuals: "ambiguous environments + delayed reveal"}
+script_structure: [hook, curiosity, psychological_mechanism, realization, final_line]
+hook_families: [recognition, contradiction, warning, question, observation]
+writing_rules:
+  - "No 'dark psychology tricks' identity, no mind-control promises, no fake certainty."
+  - "Phrase mixed/context-dependent evidence proportionally; never diagnose the viewer or another person."
+  - "Build tension through the unexplained, not fake fear. End with a useful reframe, boundary, or action when appropriate."
+visual:
+  master_language: "Cinematic psychological metaphor — the scene embodies the mental state, never literally illustrates it."
+  palette: "Deep navy / teal / cool shadows + warm amber practicals. No random saturated colors."
+  lighting: "Low-key, motivated, atmospheric, coherent. No flat studio light unless concept demands it."
+  scale: "Large environments + small human presence when emotion benefits. Do not crowd the frame."
+  depth: "Foreground layers, haze, leading lines, clear focal hierarchy. No flat stock composition."
+  camera_allowed: [slow_push, tracking, drone_glide, reveal, intimate_50_85mm_look]
+  camera_forbidden: [arbitrary_spins, shakes, frantic_motion]
+  motion: "Natural rain, fog, water, walking, wind. Reject obvious AI warping / impossible physics."
+  shot_block_seconds: [6, 10]          # default visual block when the scene is strong
+  beat_change_seconds: [3, 6]          # text/emotional beat may change inside a block
+  dissolve_seconds: [0.35, 0.65]       # transitions: mostly soft dissolves; hard cuts only when motivated
+  text_style: "Minimal white serif, centered, restrained shadow. No large boxes, no clutter."
+asset_policy:
+  hero_metaphor_shot: ai_first
+  realistic_broll: licensed_stock_allowed   # Pexels selective (DNA section 6)
+  continuity: "Part N+1 begins from final frame state of Part N (position/direction/clothing/light/weather/lens/trajectory)."
+voice:
+  profile_ref: voices.yaml#account_01
+  identity: "Male; deep; mature; controlled; cinematic. Warm low-mid body, slightly intimate. Conversational authority, never announcer-like. Micro-pauses before realizations. Silence as punctuation."
+  performance_law: "Do not read the script. Perform it as if revealing a realization privately to one intelligent person."
+music:
+  style: "Psychological cinematic ambience; dark minimal tension; restrained pulse when needed. Voice always dominant."
+  sfx_allowed: [rain, wind, water, footsteps, room_tone, distant_city, subtle_impact]
+  loudness_reference: "House target begins around -14 LUFS integrated, conservative peak control (DNA section 5)."
+length:
+  rule: "As long as the idea earns. Never lengthen only to reach a duration target."
+cross_account_forbidden:
+  - "No storybook world-building or recurring story characters (Account 2 territory)."
+  - "No wonder/nostalgia story arc as the core engine."
+  - "No warm literary-storyteller voice."

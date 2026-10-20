@@ -1,0 +1,41 @@
+# Sidecars only. The production engine itself is run as one-shot GitHub Actions jobs.
+# Profiles keep heavy 24/7 services off unless explicitly requested.
+services:
+  ollama:
+    profiles: ["llm"]
+    image: ollama/ollama:0.40.6@sha256:265409e1d931028a8f7d5a32bcbafddd7bffbc6cc629d77efe9560adf692a5e7
+    pull_policy: if_not_present
+    ports:
+      - "127.0.0.1:11434:11434"
+    environment:
+      OLLAMA_KEEP_ALIVE: "10m"
+      OLLAMA_NUM_PARALLEL: "1"
+    volumes:
+      - ollama_models:/root/.ollama
+
+  languagetool:
+    profiles: ["writing"]
+    image: erikvl87/languagetool:6.8@sha256:ef8fa12cbd485166c9ceeb7139d76d56d07707a624da6bb1fc1fbb5411750527
+    pull_policy: if_not_present
+    ports:
+      - "127.0.0.1:8010:8010"
+    environment:
+      Java_Xmx: "768m"
+
+  n8n:
+    profiles: ["automation"]
+    image: n8nio/n8n:2.45.0@sha256:2797383b01f762e0659278309c317d9f80301b6941a749faebfc52939d8b6c3d
+    pull_policy: if_not_present
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      TZ: "Africa/Casablanca"
+      GENERIC_TIMEZONE: "Africa/Casablanca"
+      N8N_ENCRYPTION_KEY: "${N8N_ENCRYPTION_KEY:-change-me-local-only}"
+      N8N_SECURE_COOKIE: "false"
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  ollama_models:
+  n8n_data:
