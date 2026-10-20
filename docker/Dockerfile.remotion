@@ -1,7 +1,9 @@
+
 # syntax=docker/dockerfile:1.7
 FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 
-ENV NODE_ENV=production
+# NOTE: NODE_ENV=production is set only at the end of this file. Setting it before
+# `npm ci` would skip devDependencies (typescript/@types/react) and break `tsc`.
 WORKDIR /app
 
 RUN apt-get update \
@@ -25,4 +27,5 @@ USER node
 RUN node_modules/.bin/tsc --noEmit \
     && npx remotion browser ensure
 
+ENV NODE_ENV=production
 CMD ["node_modules/.bin/tsc", "--noEmit"]
