@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:8b",
+ "created_at": "2026-10-20T17:18:23.6180142Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"Why Silence Feels Louder\",\n  \"hook_family\": \"contradiction\",\n  \"hook\": \"You speak, they listen. You stay quiet, they scream.\",\n  \"curiosity\": \"You know the silence isn’t empty. It’s full of what wasn’t said.\",\n  \"psychological_mechanism\": \"It’s not the absence of sound—it’s the absence of connection.\",\n  \"realization\": \"Silence becomes a mirror, reflecting what you fear to name.\",\n  \"final_line\": \"The loudest voices are the ones that never make a sound.\",\n  \"visual_metaphor\": \"A room filled with echoes, but no one is there to hear them.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 57099086760,
+ "load_duration": 5803828508,
+ "prompt_eval_count": 234,
+ "prompt_eval_cached_count": 0,
+ "prompt_eval_duration": 7242378000,
+ "eval_count": 158,
+ "eval_duration": 44030297000
+}

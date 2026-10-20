@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:8b",
+ "created_at": "2026-10-20T17:19:59.982569761Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"The Last Stop\",\n  \"world\": \"A small railway station in a snowy village, winter night. The old station had been closed for decades. Until one winter night...\",\n  \"cold_open\": \"The station is shrouded in snow, its lights dim, its tracks frozen. A single steam train pulls into the platform, its breath visible in the cold air.\",\n  \"question\": \"Who would travel so far, so late, to a place that no longer exists?\",\n  \"journey\": \"The train doors open to reveal a single passenger, wrapped in a coat of deep blue, their face hidden behind a scarf. They step down, their boots crunching on the snow, as if stepping into a memory.\",\n  \"discovery\": \"The passenger walks toward the station’s faded sign, now covered in frost. They pause, reaching out as if to touch it, then turn to face the train, which begins to pull away.\",\n  \"emotional_turn\": \"A silence lingers. The snow falls softly. The passenger stands alone, the train vanishing into the dark, leaving only the echo of its whistle.\",\n  \"payoff\": \"The passenger walks back toward the village, their steps slow, deliberate, as if retracing a path through time.\",\n  \"after_image\": \"A single lantern flickers in the distance, lighting the way through the snow.\",\n  \"hero_shot\": \"A single lantern flickers in the distance, lighting the way through the snow.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 96354956544,
+ "load_duration": 728631,
+ "prompt_eval_count": 256,
+ "prompt_eval_cached_count": 13,
+ "prompt_eval_duration": 7501612000,
+ "eval_count": 315,
+ "eval_duration": 88819307000
+}

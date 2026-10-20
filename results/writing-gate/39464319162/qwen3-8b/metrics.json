@@ -1,0 +1,164 @@
+{
+ "model": "qwen3:8b",
+ "base_url": "http://127.0.0.1:11434",
+ "seed": 20261020,
+ "tasks": [
+  {
+   "task": "t1_writer_psychology",
+   "temperature": 0.8,
+   "seed": 20261020,
+   "attempts": [
+    {
+     "attempt": 1,
+     "wall_seconds": 57.1,
+     "total_seconds": 57.1,
+     "load_seconds": 5.8,
+     "prompt_tokens": 234,
+     "eval_tokens": 158,
+     "eval_tokens_per_second": 3.59,
+     "done_reason": "stop",
+     "json_valid": true
+    }
+   ],
+   "json_valid": true,
+   "output": {
+    "title": "Why Silence Feels Louder",
+    "hook_family": "contradiction",
+    "hook": "You speak, they listen. You stay quiet, they scream.",
+    "curiosity": "You know the silence isn’t empty. It’s full of what wasn’t said.",
+    "psychological_mechanism": "It’s not the absence of sound—it’s the absence of connection.",
+    "realization": "Silence becomes a mirror, reflecting what you fear to name.",
+    "final_line": "The loudest voices are the ones that never make a sound.",
+    "visual_metaphor": "A room filled with echoes, but no one is there to hear them."
+   },
+   "checks": {
+    "spoken_words": 52,
+    "words_in_range": false,
+    "english_ratio": 1.0,
+    "repetition_ratio": 0.0,
+    "banned_phrases_found": [],
+    "empty_spoken_fields": [],
+    "hook_words": 9
+   }
+  },
+  {
+   "task": "t2_writer_storytelling",
+   "temperature": 0.8,
+   "seed": 20261020,
+   "attempts": [
+    {
+     "attempt": 1,
+     "wall_seconds": 96.36,
+     "total_seconds": 96.35,
+     "load_seconds": 0.0,
+     "prompt_tokens": 256,
+     "eval_tokens": 315,
+     "eval_tokens_per_second": 3.55,
+     "done_reason": "stop",
+     "json_valid": true
+    }
+   ],
+   "json_valid": true,
+   "output": {
+    "title": "The Last Stop",
+    "world": "A small railway station in a snowy village, winter night. The old station had been closed for decades. Until one winter night...",
+    "cold_open": "The station is shrouded in snow, its lights dim, its tracks frozen. A single steam train pulls into the platform, its breath visible in the cold air.",
+    "question": "Who would travel so far, so late, to a place that no longer exists?",
+    "journey": "The train doors open to reveal a single passenger, wrapped in a coat of deep blue, their face hidden behind a scarf. They step down, their boots crunching on the snow, as if stepping into a memory.",
+    "discovery": "The passenger walks toward the station’s faded sign, now covered in frost. They pause, reaching out as if to touch it, then turn to face the train, which begins to pull away.",
+    "emotional_turn": "A silence lingers. The snow falls softly. The passenger stands alone, the train vanishing into the dark, leaving only the echo of its whistle.",
+    "payoff": "The passenger walks back toward the village, their steps slow, deliberate, as if retracing a path through time.",
+    "after_image": "A single lantern flickers in the distance, lighting the way through the snow.",
+    "hero_shot": "A single lantern flickers in the distance, lighting the way through the snow."
+   },
+   "checks": {
+    "spoken_words": 165,
+    "words_in_range": false,
+    "english_ratio": 1.0,
+    "repetition_ratio": 0.0,
+    "banned_phrases_found": [],
+    "empty_spoken_fields": [],
+    "hook_words": 27
+   }
+  },
+  {
+   "task": "t3_retention_editor",
+   "temperature": 0.35,
+   "seed": 20261020,
+   "attempts": [
+    {
+     "attempt": 1,
+     "wall_seconds": 137.35,
+     "total_seconds": 137.35,
+     "load_seconds": 0.0,
+     "prompt_tokens": 364,
+     "eval_tokens": 437,
+     "eval_tokens_per_second": 3.47,
+     "done_reason": "stop",
+     "json_valid": true
+    }
+   ],
+   "json_valid": true,
+   "output": {
+    "revised_script": {
+     "hook": "The silence after a message is not empty—it’s a language of its own.",
+     "curiosity": "Why do we feel the need to fill it? What does it say about us?",
+     "psychological_mechanism": "Unanswered messages often mirror our own fear of rejection or the weight of unspoken expectations.",
+     "realization": "Silence isn’t a void—it’s a mirror reflecting our emotional landscape.",
+     "final_line": "Sometimes, the loudest voice is the one that never speaks."
+    },
+    "edits": [
+     {
+      "where": "hook",
+      "change": "Replaced 'In this video, we will talk about...' with a poetic hook.",
+      "why": "Creates immediate emotional engagement and sets a tone of introspection."
+     },
+     {
+      "where": "curiosity",
+      "change": "Added a rhetorical question to prompt the viewer to think.",
+      "why": "Maintains attention and invites the viewer to mentally 'close the loop' by reflecting."
+     },
+     {
+      "where": "psychological_mechanism",
+      "change": "Replaced the list of possible reasons with a deeper psychological insight.",
+      "why": "Adds emotional depth and aligns with the theme of silence as a form of communication."
+     },
+     {
+      "where": "realization",
+      "change": "Replaced the generic advice with a metaphor about silence as a mirror.",
+      "why": "Enhances poetic resonance and reinforces the theme without being didactic."
+     },
+     {
+      "where": "final_line",
+      "change": "Replaced the call to action with a metaphor about silence.",
+      "why": "Leaves a lasting impression and ties back to the core theme without being prescriptive."
+     }
+    ],
+    "self_scores": {
+     "hook_strength": 9,
+     "open_loop": 8,
+     "midpoint_turn": 9,
+     "final_line_stick": 10
+    }
+   },
+   "checks": {
+    "spoken_words": 63,
+    "words_in_range": false,
+    "english_ratio": 1.0,
+    "repetition_ratio": 0.0,
+    "banned_phrases_found": [],
+    "empty_spoken_fields": [],
+    "edits_count": 5,
+    "edits_all_have_why": true,
+    "hook_words": 13
+   }
+  }
+ ],
+ "ollama_version": "0.40.6",
+ "pull_seconds": 23.5,
+ "digest": "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+ "size_gb": 5.23,
+ "parameter_size": "8.2B",
+ "quantization": "Q4_K_M",
+ "loaded_size_gb": 6.77
+}
