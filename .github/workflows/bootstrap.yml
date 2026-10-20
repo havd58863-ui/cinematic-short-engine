@@ -1,0 +1,29 @@
+name: Bootstrap clean rebuild
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  rebuild:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace repository content with new-system.zip
+        run: |
+          set -euo pipefail
+          if [ ! -f new-system.zip ]; then
+            echo "::error::new-system.zip is missing. Upload it first."
+            exit 1
+          fi
+          rm -rf /tmp/newsystem && mkdir -p /tmp/newsystem
+          unzip -oq new-system.zip -d /tmp/newsystem
+          test -f /tmp/newsystem/pyproject.toml
+          test -f /tmp/newsystem/config/toolchain.yaml
+          find . -mindepth 1 ! -name '.git' -exec rm -rf {} +
+          cp -a /tmp/newsystem/. .
+          git config user.name "cinematic-bootstrap"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Clean rebuild: verified Phase 0 foundation" || echo "nothing"
+          git push
