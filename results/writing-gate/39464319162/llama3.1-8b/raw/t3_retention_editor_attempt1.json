@@ -1,0 +1,17 @@
+{
+ "model": "llama3.1:8b",
+ "created_at": "2026-10-20T17:20:43.369566034Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"Imagine receiving a message, only to be met with silence. What's going on in the other person's mind?\",\n    \"curiosity\": \"We've all been there - wondering why someone didn't respond to our message. But what's really happening behind the scenes?\",\n    \"psychological_mechanism\": \"The silence can be deafening, but it's not always a reflection of our worth or the quality of our relationship.\",\n    \"realization\": \"In fact, research shows that people often use silence as a coping mechanism, a way to recharge and refocus.\",\n    \"final_line\": \"So, the next time you're met with silence, try not to take it personally - it might just be a sign that the other person needs some space to breathe.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"Hook\",\n      \"change\": \"From generic statement to a thought-provoking question\",\n      \"why\": \"To engage the viewer and make them curious about the topic\"\n    },\n    {\n      \"where\": \"Psychological mechanism\",\n      \"change\": \"From 'it's probably nothing serious' to 'it's not always a reflection of our worth'\",\n      \"why\": \"To avoid minimizing the viewer's concerns and make the topic more relatable\"\n    },\n    {\n      \"where\": \"Realization\",\n      \"change\": \"From 'people use silence because they need space' to 'people often use silence as a coping mechanism'\",\n      \"why\": \"To provide a more nuanced and accurate explanation of the psychological mechanism\"\n    },\n    {\n      \"where\": \"Final line\",\n      \"change\": \"From 'remember to be kind' to 'try not to take it personally'\",\n      \"why\": \"To provide a more practical and actionable takeaway for the viewer\"\n    },\n    {\n      \"where\": \"Tone and language\",\n      \"change\": \"From formal and informative to more conversational and poetic\",\n      \"why\": \"To make the script more engaging and relatable\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 8,\n    \"open_loop\": 9,\n    \"midpoint_turn\": 8,\n    \"final_line_stick\": 9\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 112750590654,
+ "load_duration": 791212,
+ "prompt_eval_count": 353,
+ "prompt_eval_cached_count": 8,
+ "prompt_eval_duration": 26400824000,
+ "eval_count": 482,
+ "eval_duration": 86335617000
+}

@@ -1,0 +1,17 @@
+{
+ "model": "llama3.1:8b",
+ "created_at": "2026-10-20T17:17:43.886216761Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"The Weight of Absence\",\n  \"hook_family\": \"contradiction\",\n  \"hook\": \"Their silence echoes louder than my words.\",\n  \"curiosity\": \"But why does their silence feel like a scream in my ear?\",\n  \"psychological_mechanism\": \"This is often the case when we feel unseen, unheard, and unacknowledged in a relationship.\",\n  \"realization\": \"We tend to amplify the silence because it's a reminder of our own worth.\",\n  \"final_line\": \"Their silence is a reflection of our own self-doubt.\",\n  \"visual_metaphor\": \"A grand, empty ballroom, where only the faint hum of a solitary violin lingers in the air.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 49880707674,
+ "load_duration": 4570816364,
+ "prompt_eval_count": 223,
+ "prompt_eval_cached_count": 0,
+ "prompt_eval_duration": 17087171999,
+ "eval_count": 167,
+ "eval_duration": 28213629000
+}
