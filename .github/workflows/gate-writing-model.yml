@@ -1,0 +1,112 @@
+name: Gate — writing model benchmark
+
+# Acceptance gate for config/models.yaml: pick the production writer/retention-editor
+# on the REAL free runner (4 vCPU / 16 GB / CPU-only), never on a developer machine.
+# Same three DNA tasks for every candidate; results are pushed to branch `gate-results`
+# and also written to the run summary for phone reading + blind owner scoring.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        model:
+          - qwen3:8b
+          - qwen3:14b
+          - gemma4:12b
+          - llama3.1:8b
+    env:
+      MODEL: ${{ matrix.model }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space (models are 5-9 GB each)
+        run: |
+          set -euo pipefail
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune --all --force >/dev/null 2>&1 || true
+          df -h /
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ollama (pinned 0.40.6, official release tarball)
+        run: |
+          set -euo pipefail
+          command -v zstd >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq zstd)
+          curl -fsSL --retry 3 -o /tmp/ollama.tar.zst \
+            https://github.com/ollama/ollama/releases/download/v0.40.6/ollama-linux-amd64.tar.zst
+          sudo tar --use-compress-program=unzstd -xf /tmp/ollama.tar.zst -C /usr/local
+          rm -f /tmp/ollama.tar.zst
+          ollama --version
+
+      - name: Start Ollama and wait for health
+        run: |
+          set -euo pipefail
+          OLLAMA_HOST=127.0.0.1:11434 nohup ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:11434/api/version; then echo; echo "ollama up"; break; fi
+            sleep 2
+          done
+          echo "cpus: $(nproc)"; free -h; df -h / | tail -1
+
+      - name: Run writing gate (${{ matrix.model }})
+        timeout-minutes: 120
+        run: |
+          set -euo pipefail
+          SAFE_MODEL=$(echo "$MODEL" | tr ':' '-')
+          echo "SAFE_MODEL=$SAFE_MODEL" >> "$GITHUB_ENV"
+          OUT="results/writing-gate/${{ github.run_id }}/$SAFE_MODEL"
+          echo "OUT=$OUT" >> "$GITHUB_ENV"
+          python scripts/benchmark_writer.py --model "$MODEL" --out "$OUT"
+
+      - name: Write run summary (phone-readable samples)
+        if: always()
+        run: |
+          {
+            echo "### Writing gate — $MODEL (run ${{ github.run_id }})"
+            echo
+            if [ -f "$OUT/samples.md" ]; then cat "$OUT/samples.md"; else echo "_no samples produced — see logs_"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push results to gate-results branch
+        if: always()
+        run: |
+          set -euo pipefail
+          [ -d "$OUT" ] || { echo "no results dir"; exit 0; }
+          REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          for try in 1 2 3 4 5; do
+            rm -rf /tmp/gr
+            if ! git clone --quiet --depth 1 --branch gate-results "$REMOTE" /tmp/gr 2>/dev/null; then
+              mkdir -p /tmp/gr
+              git -C /tmp/gr init -q -b gate-results
+              git -C /tmp/gr remote add origin "$REMOTE"
+            fi
+            mkdir -p "/tmp/gr/$OUT"
+            cp -a "$OUT/." "/tmp/gr/$OUT/"
+            git -C /tmp/gr config user.name "writing-gate"
+            git -C /tmp/gr config user.email "actions@users.noreply.github.com"
+            git -C /tmp/gr add -A
+            if git -C /tmp/gr diff --cached --quiet; then echo "nothing to commit"; break; fi
+            git -C /tmp/gr commit -q -m "Writing gate ${{ github.run_id }}: $MODEL"
+            if git -C /tmp/gr push -q origin gate-results; then echo "pushed ✅"; break; fi
+            echo "push race, retry $try"; sleep $((RANDOM % 10 + 5))
+          done
+
+      - name: Upload results artifact (backup)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: writing-gate-${{ env.SAFE_MODEL }}-${{ github.run_id }}
+          path: results/writing-gate/${{ github.run_id }}/
+          if-no-files-found: warn
