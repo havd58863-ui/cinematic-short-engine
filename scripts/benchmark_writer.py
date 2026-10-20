@@ -367,7 +367,6 @@ def main() -> int:
         ps = http_json("GET", f"{base}/api/ps", timeout=30).get("models", [])
         if ps:
             report["loaded_size_gb"] = round((ps[0].get("size") or 0) / 1e9, 2)
-        pass
     except Exception:  # noqa: BLE001 - metric is best-effort
         pass
 
