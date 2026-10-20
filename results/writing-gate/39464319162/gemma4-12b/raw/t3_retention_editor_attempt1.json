@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-20T17:28:41.053306231Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"Silence isn't just an absence of sound; it is a deliberate choice.\",\n    \"curiosity\": \"When a message sits unread, your mind begins to construct a narrative to fill the void. You assume they are busy, or perhaps angry, or worse—indifferent. But the psychology of a 'ghosted' text is rarely about the sender's schedule.\",\n    \"psychological_mechanism\": \"It is about the weight of the 'unsaid.' For the receiver, a message is a demand for energy. For the sender, a reply is a commitment of self. Sometimes, the silence is a protective wall, a way to preserve a boundary that words might break.\",\n    \"realization\": \"We often mistake a lack of response for a lack of value. We project our own anxieties onto a blank screen, turning a pause into a permanent ending.\",\n    \"final_line\": \"The loudest thing a person can say is the message they choose not to send.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"Opening\",\n      \"change\": \"Removed 'In this video, we will talk about...' and replaced with a philosophical hook.\",\n      \"why\": \"The original was a slow introduction. The new hook lands in <3 seconds by defining silence as a 'choice,' immediately opening a loop about why someone would choose it.\"\n    },\n    {\n      \"where\": \"Body Paragraph 1\",\n      \"change\": \"Replaced 'they are busy or they forgot' with 'your mind begins to construct a narrative.'\",\n      \"why\": \"Moves from stating facts to describing an internal process. It creates a 'mirror' effect for the viewer, renewing curiosity about their own internal reactions.\"\n    },\n    {\n      \"where\": \"Midpoint Turn\",\n      \"change\": \"Shifted from 'they need space' to 'a message is a demand for energy.'\",\n      \"why\": \"This is the midpoint turn. It flips the perspective from the victim of silence to the mechanics of social energy, providing a new way to view the problem.\"\n    },\n    {\n      \"where\": \"Conclusion\",\n      \"change\": \"Removed the 'like and subscribe' and 'be kind' and replaced with a poetic summary.\",\n      \"why\": \"Removes the 'commercial' break. The final line is designed to linger, providing a sense of closure that sticks in the viewer's mind.\"\n    },\n    {\n      \"where\": \"Tone/Style\",\n      \"change\": \"Removed 'Psychology is a very interesting science' and replaced with precise, evocative vocabulary.\",\n      \"why\": \"The original was filler. The new version uses 'protective wall' and 'commitment of self' to maintain a high-retention, cinematic flow.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 9,\n    \"open_loop\": 9,\n    \"midpoint_turn\": 8,\n    \"final_line_stick\": 9\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 296916385555,
+ "load_duration": 747360,
+ "prompt_eval_count": 375,
+ "prompt_eval_cached_count": 0,
+ "prompt_eval_duration": 46705747000,
+ "eval_count": 679,
+ "eval_duration": 250097513000
+}

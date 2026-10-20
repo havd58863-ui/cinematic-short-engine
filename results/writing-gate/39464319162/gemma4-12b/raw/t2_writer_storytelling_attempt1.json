@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-20T17:23:44.134913571Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"The Midnight Passenger\",\n  \"world\": \"A remote, snow-dusted railway station in a valley where the clocks stopped ticking in 1994. The air tastes of iron and frost.\",\n  \"cold_open\": \"The old station had been closed for decades. Until one winter night, the silence of the valley was broken by a low, rhythmic thrum—a heartbeat of steel against ice.\",\n  \"question\": \"Who is the traveler, and why did they choose a destination that no longer exists?\",\n  \"journey\": \"The tracks are buried under a shroud of white, yet the rails begin to hum. A single headlight pierces the fog, a warm amber eye cutting through the blue night. The steam rises in heavy, ghost-white plumes, swirling around the rusted signs. Then, the screech of brakes—a metallic sigh. The train exhales a cloud of heat, settling into the snow. One door opens. One foot hits the gravel. The passenger is small, wrapped in a coat that smells of old wool and lavender. They carry a single suitcase, its leather worn smooth by time. They stand on the platform, looking at the empty tracks ahead, and place a single, withered flower on the bench. They don't look back as they walk into the shadows of the village.\",\n  \"discovery\": \"The train does not leave a trail of smoke behind; it simply fades into the mist, leaving only the smell of steam and the lingering warmth of a memory.\",\n  \"emotional_turn\": \"The passenger isn't looking for a way home; they are looking for a way back.\",\n  \"payoff\": \"The station is silent again. But on the bench, the flower remains, perfectly preserved by the frost.\",\n  \"after_image\": \"The feeling of a door closing softly in a house you haven't visited in years.\",\n  \"hero_shot\": \"A wide cinematic shot of the steam train’s amber headlight illuminating a single, frost-covered flower left on a weathered wooden bench as the mist swallows the tracks.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 230433829148,
+ "load_duration": 859629,
+ "prompt_eval_count": 259,
+ "prompt_eval_cached_count": 0,
+ "prompt_eval_duration": 32593058000,
+ "eval_count": 454,
+ "eval_duration": 197777963000
+}
