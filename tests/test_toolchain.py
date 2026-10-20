@@ -1,4 +1,9 @@
-from engine.toolchain import SECRET_ENV_NAMES, diagnose, validate_toolchain_manifest
+from engine.toolchain import SECRET_ENV_NAMES, _module_present, diagnose, validate_toolchain_manifest
+
+
+def test_module_present_never_raises_on_missing_dotted_parent() -> None:
+    assert _module_present("definitely_missing_parent.child") is False
+    assert _module_present("json") is True
 
 
 def test_toolchain_manifest_is_consistent() -> None:

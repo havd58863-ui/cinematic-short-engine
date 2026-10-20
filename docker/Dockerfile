@@ -29,6 +29,7 @@ COPY src ./src
 RUN uv pip install --system --break-system-packages --no-deps .
 
 COPY --chown=engine:engine config ./config
+COPY --chown=engine:engine requirements ./requirements
 COPY --chown=engine:engine docs ./docs
 COPY --chown=engine:engine scripts ./scripts
 COPY --chown=engine:engine vendor/openmontage.lock.json vendor/README_VENDOR.md ./vendor/

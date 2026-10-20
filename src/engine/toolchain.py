@@ -66,6 +66,14 @@ def validate_toolchain_manifest(config_dir: str | pathlib.Path | None = None) ->
     return {"ok": True, "tool_count": len(tools), "tool_ids": sorted(seen)}
 
 
+def _module_present(name: str) -> bool:
+    """Presence check that never raises (dotted names import their parent package)."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ModuleNotFoundError, ValueError):
+        return False
+
+
 def diagnose(config_dir: str | pathlib.Path | None = None) -> dict[str, Any]:
     """Report installed local capabilities without importing heavy packages or exposing secrets."""
     manifest = load_toolchain(config_dir)
@@ -74,7 +82,7 @@ def diagnose(config_dir: str | pathlib.Path | None = None) -> dict[str, Any]:
 
     for tool in manifest.get("tools", []):
         for module in tool.get("python_modules") or []:
-            modules[str(module)] = importlib.util.find_spec(str(module)) is not None
+            modules[str(module)] = _module_present(str(module))
         for binary in tool.get("binaries") or []:
             binaries[str(binary)] = shutil.which(str(binary))
 
