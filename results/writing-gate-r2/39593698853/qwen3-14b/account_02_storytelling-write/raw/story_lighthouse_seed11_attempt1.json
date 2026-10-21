@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T11:59:24.758307541Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"The Keeper's Light\",\n  \"world\": \"cinematic storybook realism — tactile, believable, gentle wonder\",\n  \"cold_open\": \"The storm howled through the cliffs, but the lighthouse still stood, and its lamp still burned.\",\n  \"question\": \"Who lit the lamp when no one was there to keep it?\",\n  \"journey\": \"A boy followed the light through the storm, past the rusted gate, past the empty keeper’s cottage, until he reached the lighthouse steps, damp and cold, leading upward into the dark.\",\n  \"discovery\": \"Inside, the lamp stood alone, glowing softly. A journal lay open on the desk, its pages filled with the keeper’s final entries, and the last line read: 'The light remembers.'\",\n  \"emotional_turn\": \"The boy felt the weight of the words, as if the lamp had seen him, known him, and waited for him to come.\",\n  \"payoff\": \"As the storm passed, the lamp flared once, then dimmed, as if saying goodbye. The boy stood there, changed, holding a memory that would never fade.\",\n  \"after_image\": \"The boy walks away, the lighthouse glowing gently behind him.\",\n  \"hero_shot\": \"The boy stands at the top of the lighthouse, the lamp behind him, the storm now calm, the sea shimmering in the light.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 99217316718,
+ "load_duration": 731926,
+ "prompt_eval_count": 353,
+ "prompt_eval_cached_count": 190,
+ "prompt_eval_duration": 13706591000,
+ "eval_count": 297,
+ "eval_duration": 85399580000
+}
