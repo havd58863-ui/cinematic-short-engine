@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T12:07:28.777690662Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"Silence in an argument isn't always a lack of words.\",\n    \"curiosity\": \"When the shouting stops and the room goes cold, it feels like a wall has been built. But is that wall a fortress of indifference, or a desperate attempt to keep the internal structure from collapsing entirely?\",\n    \"psychological_mechanism\": \"In high-tension moments, the brain’s emotional center can become overwhelmed by the sheer volume of conflict. For some, silence is a survival reflex—a 'freeze' response where the nervous system shuts down to prevent a total emotional blowout. It isn't a calculated move to win the fight; it is a biological circuit breaker tripping because the heat of the conversation has exceeded the capacity to process it.\",\n    \"realization\": \"The person isn't withdrawing from you; they are retreating from the intensity of the moment. They are drowning in the noise, and their silence is the only way they know how to find air. It is a plea for space, not a declaration of distance.\",\n    \"final_line\": \"Sometimes, the loudest thing a person can say is nothing at all.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"Hook\",\n      \"change\": \"Removed 'Today we explain' and 'the truth is simple' to focus on the paradox of silence.\",\n      \"why\": \"Eliminates 'introductory fluff' to land the hook in under 3 seconds. It opens a loop about the *nature* of silence rather than just announcing a topic.\"\n    },\n    {\n      \"where\": \"Curiosity\",\n      \"change\": \"Replaced the 'avoidant/punishing' accusation with a question about 'fortress vs. collapse'.\",\n      \"why\": \"The original draft was a flat diagnosis. The new version creates a tension between two possibilities, forcing the viewer to stay to find the answer.\"\n    },\n    {\n      \"where\": \"Psychological_mechanism\",\n      \"change\": \"Shifted from 'control' to 'biological circuit breaker' and 'freeze response'.\",\n      \"why\": \"Replaced fake certainty and 'dark psychology' tropes with a precise, neutral explanation of nervous system regulation to maintain authority without being clinical.\"\n    },\n    {\n      \"where\": \"Realization\",\n      \"change\": \"Changed 'demand an answer' to 'retreating from intensity' and 'plea for space'.\",\n      \"why\": \"The original was an aggressive call to action. The new version provides a midpoint turn—shifting the perspective from 'they are attacking me' to 'they are overwhelmed'.\"\n    },\n    {\n      \"where\": \"Final Line\",\n      \"change\": \"Removed 'Follow this channel' and replaced with a poetic summary of the paradox.\",\n      \"why\": \"Removes the CTA to adhere to the law. The new line sticks by mirroring the hook's theme, providing a satisfying emotional resolution.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 9,\n    \"open_loop\": 9,\n    \"midpoint_turn\": 8,\n    \"final_line_stick\": 9\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 262394751685,
+ "load_duration": 739993,
+ "prompt_eval_count": 440,
+ "prompt_eval_cached_count": 435,
+ "prompt_eval_duration": 1122417000,
+ "eval_count": 708,
+ "eval_duration": 261096023000
+}

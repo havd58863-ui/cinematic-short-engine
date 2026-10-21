@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T11:53:27.28695528Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"You swore you’d delete them, yet you’re still scrolling.\",\n    \"curiosity\": \"There is a specific reason your thumb drifts back to those threads. It isn't just nostalgia, and it isn't a simple lack of things to do. It is a subconscious attempt to solve a puzzle that your brain hasn't finished pieceing together.\",\n    \"psychological_mechanism\": \"When we reread old messages, we are engaging in 'narrative reconstruction.' Your brain treats a past conversation like a crime scene, trying to find the exact moment the tone shifted or the connection frayed. By scrolling back, you are hunting for a 'missing' piece of data—a subtext you missed in real-time. You aren't looking for the person anymore; you are looking for the version of yourself that existed before the silence began.\",\n    \"realization\": \"The loop stays open because the human mind hates an unfinished story. You keep scrolling because you are trying to rewrite a conclusion that has already been reached. You aren't seeking a way back into their life; you are trying to find a way to make sense of your own history.\",\n    \"final_line\": \"Some stories aren't meant to be solved; they are only meant to be remembered.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"Hook\",\n      \"change\": \"Removed 'In this video we will talk about' and replaced with 'You swore you’d delete them, yet you’re still scrolling.'\",\n      \"why\": \"The original was a slow introduction. The new hook creates an immediate 'internal' hook by calling out a private behavior, landing the hook in under 3 seconds.\"\n    },\n    {\n      \"where\": \"Curiosity\",\n      \"change\": \"Replaced 'Research shows' and 'it's normal' with the concept of a 'puzzle' and 'subconscious attempt.'\",\n      \"why\": \"Removed fake certainty and 'research' claims. It opens a loop by suggesting there is a hidden reason, forcing the viewer to stay to find out what it is.\"\n    },\n    {\n      \"where\": \"Psychological_mechanism\",\n      \"change\": \"Introduced 'Narrative Reconstruction' and the 'crime scene' metaphor.\",\n      \"why\": \"The original was generic. The new version provides a precise, poetic mechanism that explains the *why* without diagnosing the viewer, keeping curiosity high.\"\n    },\n    {\n      \"where\": \"Realization\",\n      \"change\": \"Shifted from 'live your life' advice to the concept of 'rewriting a conclusion.'\",\n      \"why\": \"The midpoint turn moves from the mechanics of the brain to the emotional truth of the viewer's experience, providing a satisfying 'click' of realization.\"\n    },\n    {\n      \"where\": \"Final Line\",\n      \"change\": \"Removed 'Like and subscribe' and replaced with a poetic closing on 'stories not meant to be solved.'\",\n      \"why\": \"The original was a generic CTA. The new line sticks by providing a final, resonant thought that lingers after the video ends.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 9,\n    \"open_loop\": 9,\n    \"midpoint_turn\": 8,\n    \"final_line_stick\": 9\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 272043268127,
+ "load_duration": 838608,
+ "prompt_eval_count": 447,
+ "prompt_eval_cached_count": 442,
+ "prompt_eval_duration": 1178140000,
+ "eval_count": 753,
+ "eval_duration": 270681434000
+}

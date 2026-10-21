@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T12:03:06.380694612Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"Silence in a heated argument isn't always a lack of words.\",\n    \"curiosity\": \"It is often a sudden, internal shift. While you are searching for a rebuttal, they are retreating into a private space. But why does the loudest person in the room suddenly become the quietest? What happens behind the wall of their silence?\",\n    \"psychological_mechanism\": \"When the brain perceives a conflict as an existential threat to safety, the nervous system can trigger a 'freeze' response. It isn't a calculated tactic to win the debate; it is a biological shutdown. The prefrontal cortex, responsible for logic and speech, loses its grip as the amygdala takes over. In this state, the person isn't choosing to be quiet—they are physically unable to find the words to continue.\",\n    \"realization\": \"The silence isn't a weapon of control, but a sanctuary of overwhelm. They aren't withdrawing from you; they are retreating from the intensity of the moment to survive it. When you demand an answer, you are asking a locked door to open while the house is still on fire.\",\n    \"final_line\": \"Sometimes, the most profound thing a person can say is nothing at all.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"Hook\",\n      \"change\": \"Removed 'Today we explain' and 'the truth is simple' to focus on the paradox of silence.\",\n      \"why\": \"The original was a slow, academic introduction. The new hook creates an immediate cognitive dissonance that demands an explanation.\"\n    },\n    {\n      \"where\": \"Curiosity\",\n      \"change\": \"Replaced 'they stopped caring' with a question about the 'private space' of silence.\",\n      \"why\": \"The original draft made a false, certain claim (diagnosis). The new version opens a loop about the internal experience of the other person.\"\n    },\n    {\n      \"where\": \"Psychological_mechanism\",\n      \"change\": \"Shifted from 'avoidant personality' to the 'freeze' response and amygdala activation.\",\n      \"why\": \"The original used 'dark psychology' tropes. The new version provides a precise, biological mechanism that explains the 'why' without diagnosing the viewer.\"\n    },\n    {\n      \"where\": \"Realization\",\n      \"change\": \"Changed 'demand an answer' to the metaphor of a 'locked door' and 'house on fire'.\",\n      \"why\": \"The original was a command (CTA). The new version provides a poetic midpoint turn that shifts the perspective from frustration to empathy.\"\n    },\n    {\n      \"where\": \"Final Line\",\n      \"change\": \"Removed the 'Follow for more' and replaced it with a poetic summary of silence.\",\n      \"why\": \"The original was a generic CTA. The new line sticks because it recontextualizes the entire theme into a lingering thought.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 9,\n    \"open_loop\": 9,\n    \"midpoint_turn\": 8,\n    \"final_line_stick\": 9\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 311531186661,
+ "load_duration": 758333,
+ "prompt_eval_count": 440,
+ "prompt_eval_cached_count": 0,
+ "prompt_eval_duration": 54018542000,
+ "eval_count": 705,
+ "eval_duration": 257303999000
+}

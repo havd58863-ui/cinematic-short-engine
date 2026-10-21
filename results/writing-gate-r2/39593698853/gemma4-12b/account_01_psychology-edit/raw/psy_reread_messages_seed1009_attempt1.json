@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T11:57:54.847375566Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"You swore you’d delete them, yet you keep scrolling back.\",\n    \"curiosity\": \"There is a specific reason your thumb gravitates toward those old threads. It isn't just a habit or a moment of boredom. It is a subconscious attempt to solve a puzzle your brain hasn't finished pieceing together yet.\",\n    \"psychological_mechanism\": \"When we revisit old conversations, we aren't just reading words; we are hunting for lost context. The brain seeks to reconcile the person they were with the person they became. It’s a form of cognitive closure. You are trying to find the exact moment the frequency shifted, looking for a hidden meaning in a sentence that was actually just a mundane thought. You are trying to rewrite a history that has already been set in stone.\",\n    \"realization\": \"The ache isn't about the person anymore; it’s about the version of yourself that existed when those messages were sent. You aren't looking for them. You are looking for the feeling of who you used to be before the silence took over. You are trying to inhabit a ghost of a moment.\",\n    \"final_line\": \"We don't revisit the past to move forward; we do it to stay there for a second longer.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"Hook\",\n      \"change\": \"Removed 'In this video we will talk about' and replaced with a direct observation of the viewer's behavior.\",\n      \"why\": \"The original was a slow introduction. The new hook lands in 2 seconds by calling out a specific, private action, creating an immediate 'Why am I doing this?' loop.\"\n    },\n    {\n      \"where\": \"Curiosity\",\n      \"change\": \"Replaced 'research shows' and 'it's normal' with the concept of a 'puzzle' and 'subconscious attempt'.\",\n      \"why\": \"The original lacked stakes. By framing it as an unsolved puzzle, it creates a curiosity gap that the viewer feels compelled to close by watching the next section.\"\n    },\n    {\n      \"where\": \"Psychological_mechanism\",\n      \"change\": \"Shifted from 'boredom/love' to 'cognitive closure' and 'hunting for lost context'.\",\n      \"why\": \"The original was too simplistic. The new version provides a sophisticated 'why' that feels like a revelation, maintaining interest through precise imagery rather than generic labels.\"\n    },\n    {\n      \"where\": \"Realization\",\n      \"change\": \"Introduced the 'midpoint turn'—shifting the focus from the other person to the self.\",\n      \"why\": \"The draft was stagnant. By pivoting the realization to the viewer's own identity, it creates an emotional peak that re-engages the viewer's attention.\"\n    },\n    {\n      \"where\": \"Final Line\",\n      \"change\": \"Removed 'Like and subscribe' and replaced with a poetic summary of the paradox.\",\n      \"why\": \"The original was a generic CTA. The new line provides a 'sticky' takeaway that lingers in the mind, fulfilling the requirement for a poetic, precise finish.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 9,\n    \"open_loop\": 9,\n    \"midpoint_turn\": 8,\n    \"final_line_stick\": 9\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 267557787085,
+ "load_duration": 769751,
+ "prompt_eval_count": 447,
+ "prompt_eval_cached_count": 442,
+ "prompt_eval_duration": 1164421000,
+ "eval_count": 761,
+ "eval_duration": 266175576000
+}

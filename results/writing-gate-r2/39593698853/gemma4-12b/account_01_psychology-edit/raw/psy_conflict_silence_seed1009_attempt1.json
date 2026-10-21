@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T12:11:36.742964669Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"Silence in a heated argument isn't always a lack of words.\",\n    \"curiosity\": \"It is often a profound internal shift. While one person raises their voice to bridge the gap, the other retreats into a fortress of stillness. But is this a wall meant to keep you out, or a shield to keep themselves safe?\",\n    \"psychological_mechanism\": \"When the emotional volume becomes unbearable, the brain can trigger a 'freeze' response. It is a survival mechanism where the nervous system perceives the conflict as a physical threat. Instead of choosing to be quiet, the mind shuts down the ability to communicate to prevent a total internal collapse. It is not a tactical choice of power; it is a biological white flag raised by an overwhelmed psyche.\",\n    \"realization\": \"The next time the room goes cold, look past the silence. It isn't a refusal to engage with you; it is a struggle to remain present. They aren't withdrawing from the conversation—they are retreating from the intensity of the moment just to survive the noise.\",\n    \"final_line\": \"Sometimes, the loudest thing a person can do is say nothing at all.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"Hook\",\n      \"change\": \"Removed 'Today we explain' and 'the truth is simple' for a direct observation.\",\n      \"why\": \"Flaw: Slow start. The new hook lands in 2 seconds by challenging a common assumption, immediately opening a loop about the 'why'.\"\n    },\n    {\n      \"where\": \"Curiosity\",\n      \"change\": \"Replaced 'they stopped caring' with the 'fortress' and 'shield' metaphor.\",\n      \"why\": \"Flaw: False certainty/judgment. The new version creates a mystery (wall vs. shield) that keeps the viewer watching to find the answer.\"\n    },\n    {\n      \"where\": \"Psychological_mechanism\",\n      \"change\": \"Shifted from 'avoidant/control' to 'nervous system freeze response'.\",\n      \"why\": \"Flaw: Diagnosis/Dark psychology. The new version explains the mechanism as a biological process, which is more accurate and less accusatory.\"\n    },\n    {\n      \"where\": \"Realization\",\n      \"change\": \"Changed 'demand an answer' to 'look past the silence'.\",\n      \"why\": \"Flaw: Call to action/Instructional. The new version provides a shift in perspective (the midpoint turn) that resolves the curiosity loop.\"\n    },\n    {\n      \"where\": \"Final Line\",\n      \"change\": \"Removed 'Follow for more' and added a poetic summary.\",\n      \"why\": \"Flaw: CTA/Weak ending. The new line sticks by re-contextualizing the silence as a form of communication.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 9,\n    \"open_loop\": 9,\n    \"midpoint_turn\": 8,\n    \"final_line_stick\": 9\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 247963279622,
+ "load_duration": 972427,
+ "prompt_eval_count": 440,
+ "prompt_eval_cached_count": 435,
+ "prompt_eval_duration": 1132853000,
+ "eval_count": 686,
+ "eval_duration": 246629171000
+}
