@@ -4,17 +4,26 @@ ollama:
   base_url_env: OLLAMA_BASE_URL
   smoke_only_model: "qwen2.5:0.5b@sha256:a8b0c51577010a279d933d14c2a8ab4b268079d44c5c8830c0a93900f1827c67"
   production_candidates:
-    # Round 1 (blind, run 39464319162) is DONE: gate detail + thresholds live in
-    # config/writing_gate.yaml. llama3.1:8b rejected for production; qwen3:8b parked
-    # as a utility-only reserve. Round 2 runs ONLY gemma4:12b vs qwen3:14b.
-    writer: ["gemma4:12b", "qwen3:14b"]
-    retention_editor: ["gemma4:12b", "qwen3:14b"]
-    rejected: ["llama3.1:8b (round1: 0/3 length compliance, camera directions in narration, unverified research claim)"]
+    # Round 2 gate is DONE (run 39593698853, 48 generations, see config/writing_gate.yaml).
+    # gemma4:12b passed every pre-registered threshold: hard gates per account
+    # (first 0.92/0.83, final 1.00/0.92, median time-to-acceptable 193s/180s) and the
+    # blind owner card (mean 91.25, cell min 85 vs required 70/60) — winning all four sections.
+    # qwen3:14b passed the blind card (79.0 mean, 76 min) but FAILED the hard gates
+    # (first-attempt 0.00 on both accounts; final 0.42/0.67; story median TTA 582s > 480s),
+    # and gates come before points (pre-registered), so it is rejected for production roles.
+    writer: ["gemma4:12b"]
+    retention_editor: ["gemma4:12b"]
+    rejected: ["llama3.1:8b (round1: 0/3 length compliance, camera directions in narration, unverified research claim)",
+               "qwen3:14b (round2: chronic beat-budget under/overshoot across repairs; first-attempt 0.00, final 0.42/0.67, story TTA 582s; editor justifications degrade to word-count bookkeeping under repair)"]
     utility_reserve: ["qwen3:8b (round1: terse aphorisms, 0/3 length; internal non-audience tasks only, if ever)"]
     scene_editor: []
     director: []
     editor: []
-  selected: null
+  selected:
+    writer: "gemma4:12b@sha256:6114515d63c17436a7c0417d82820ac65ad643e2806c5a3c89cb62846436ed0b"
+    retention_editor: "gemma4:12b@sha256:6114515d63c17436a7c0417d82820ac65ad643e2806c5a3c89cb62846436ed0b"
+    locked_via: "config/writing_gate.yaml round 2; run 39593698853; results on the gate-results branch"
+    digest_change_rule: "Any digest change must re-enter the writing gate (regression run) before production use."
   selection_gate:
     - "Benchmark on the actual GitHub Actions CPU runner, not a developer workstation."
     - "Generate blind samples for both accounts from the same briefs."
