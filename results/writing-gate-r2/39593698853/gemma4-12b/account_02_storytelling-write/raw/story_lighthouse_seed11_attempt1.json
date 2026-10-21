@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T11:59:35.369476078Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"The Keeper’s Ember\",\n  \"world\": \"Cinematic Storybook Realism\",\n  \"cold_open\": \"The salt spray bites like a winter frost, whipping against the jagged teeth of the shoreline rocks.\",\n  \"question\": \"Why does the glass eye of the lighthouse pulse with a rhythmic, amber heartbeat tonight?\",\n  \"journey\": \"Down in the village, the elders pull their shutters tight against the gale. They speak in hushed tones of the old keeper, a man who vanished into the mist decades ago. But tonight, the rotating beam cuts through the black curtain of the storm. It isn't the flickering, dying gasp of a mechanical failure. It is steady. It is purposeful. It sweeps across the churning foam, tracing the path of ships that haven't sailed these waters in a generation. The gears groan, a heavy, metallic sigh echoing from the tower's hollow bones.\",\n  \"discovery\": \"A young girl stands at the cliff’s edge, her coat snapping in the wind. She sees the light leap—not a steady beam, but a flare of recognition. In that flash, she sees a silhouette against the pane: a shadow moving with practiced grace, polishing the heavy lens.\",\n  \"emotional_turn\": \"It isn't a ghost seeking a haunting, but a memory refusing to fade. The light isn't calling for help; it is keeping a promise made to the sea. It is the warmth of a hand on a shoulder, steadying a traveler in the dark.\",\n  \"payoff\": \"The storm breaks, the wind subsiding into a weary moan. The light stays, soft and constant, refusing to dim even as the clouds part. The keeper is gone, but his vigil remains, a golden thread sewn into the fabric of the night.\",\n  \"after_image\": \"A single, polished brass key sits on the windowsill, glowing in the dying amber light.\",\n  \"hero_shot\": \"A massive, soot-stained lens refracting a single beam of gold across a face made of sea-spray and shadow.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 177042004470,
+ "load_duration": 587663,
+ "prompt_eval_count": 358,
+ "prompt_eval_cached_count": 0,
+ "prompt_eval_duration": 28582143000,
+ "eval_count": 443,
+ "eval_duration": 144363661000
+}
