@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T12:17:54.246870424Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"Why Some People Go Quiet in the Middle of a Conflict\",\n  \"hook_family\": \"question\",\n  \"hook\": \"Ever noticed how some people vanish when a fight starts?\",\n  \"curiosity\": \"It's not always about giving up. Sometimes, silence is a shield. A way to avoid the storm. A choice made not from fear, but from a deep, unspoken need to preserve something fragile — like the illusion of control, or the hope that the conversation might just end.\",\n  \"psychological_mechanism\": \"In moments of high emotion, the brain’s default mode kicks in. It’s not logic that stops them — it’s a survival instinct. They retreat into a mental corner, where they can observe, assess, and decide whether to re-engage or disengage. This isn’t weakness. It’s a self-protective strategy, a quiet rebellion against overwhelm.\",\n  \"realization\": \"What feels like silence is actually a form of communication. A pause, a hesitation, a way of saying, 'I’m still here.' It’s a language of restraint, and sometimes, the most powerful words are the ones that are left unsaid.\",\n  \"final_line\": \"Sometimes, the loudest voice is the one that chooses not to speak.\",\n  \"visual_metaphor\": \"A man stands at the edge of a storm, arms folded, eyes closed, as rain lashes the background — not running from it, but holding his ground.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 131190916699,
+ "load_duration": 853344,
+ "prompt_eval_count": 317,
+ "prompt_eval_cached_count": 316,
+ "prompt_eval_duration": 412501000,
+ "eval_count": 311,
+ "eval_duration": 130650164000
+}

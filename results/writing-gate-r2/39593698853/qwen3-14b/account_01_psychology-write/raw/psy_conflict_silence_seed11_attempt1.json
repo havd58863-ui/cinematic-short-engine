@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T12:04:23.165938667Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"Why Some People Go Quiet in the Middle of a Conflict\",\n  \"hook_family\": \"question\",\n  \"hook\": \"Ever notice someone freeze during a fight — instead of shouting, they go silent.\",\n  \"curiosity\": \"There’s a strange stillness in their eyes, like they’ve stepped outside the argument and can’t find their way back in. It’s not fear, not exactly. It’s more like a door closing, gently but firmly, behind them.\",\n  \"psychological_mechanism\": \"In moments of intense conflict, some people retreat inward — not to avoid, but to protect. Their brain shifts into a survival mode, where verbal confrontation feels too risky. They’re not backing down; they’re recalibrating, trying to make sense of chaos before they can speak again.\",\n  \"realization\": \"This silence is a shield, not a surrender. It’s their way of saying, 'I need space to think, not to react.' It’s a pause that can hold more power than any argument.\",\n  \"final_line\": \"Sometimes, silence is the most honest thing you can say.\",\n  \"visual_metaphor\": \"A man standing in a storm, arms outstretched — not fighting the wind, but listening to it.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 121016383598,
+ "load_duration": 790922,
+ "prompt_eval_count": 317,
+ "prompt_eval_cached_count": 174,
+ "prompt_eval_duration": 9298389000,
+ "eval_count": 269,
+ "eval_duration": 111608641000
+}

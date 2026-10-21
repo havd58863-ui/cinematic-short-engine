@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T11:57:14.043690726Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"Why You Keep Rereading Old Messages\",\n  \"hook_family\": \"recognition\",\n  \"hook\": \"You delete them. Then you come back. Again and again.\",\n  \"curiosity\": \"There's a quiet pull, a familiar ache. You tell yourself you're done, but your fingers hesitate. The screen glows, and suddenly, you're reading again — not for answers, but for comfort. You're searching for something you can't name.\",\n  \"psychological_mechanism\": \"Your mind isn't trying to cling to the past. It's trying to make sense of the present. Rereading becomes a way to test how you've changed, how you'd respond now. It's not about the message — it's about the self you're trying to understand. You're not looking for closure, but for proof that you're still evolving. This habit can surface during moments of uncertainty — like when you're facing a new relationship or a difficult decision — as if the old words might offer a mirror to your current thoughts.\",\n  \"realization\": \"You're not stuck in the past. You're mapping the distance between who you were and who you are. Every revisit is a subtle check — a way to see if you've grown enough to let go. It's a quiet, private conversation with yourself, asking if you're ready to move on.\",\n  \"final_line\": \"Sometimes, the act of letting go starts with reading it again — and then closing the screen.\",\n  \"visual_metaphor\": \"A hand holds a crumpled letter, but instead of tossing it, they smooth it out, reading the words with a new light in their eyes.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 182616025393,
+ "load_duration": 810622,
+ "prompt_eval_count": 731,
+ "prompt_eval_cached_count": 345,
+ "prompt_eval_duration": 24386923000,
+ "eval_count": 353,
+ "eval_duration": 158108605000
+}

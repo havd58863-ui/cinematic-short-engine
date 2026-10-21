@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T11:46:19.292177094Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"Why You Keep Rereading Old Messages\",\n  \"hook_family\": \"recognition\",\n  \"hook\": \"You delete them. Then you come back.\",\n  \"curiosity\": \"What starts as a habit becomes a ritual. A silent conversation with a version of yourself that no longer exists. You scroll, you pause, you feel something shift—but what? Why do these fragments of the past still hold you?\",\n  \"psychological_mechanism\": \"The brain craves closure, but it also craves connection. These messages are not just words—they are echoes of emotions you never fully processed. Rereading them is like revisiting a place you once called home, even if it no longer feels like one. It’s not about holding on; it’s about trying to understand what you let go.\",\n  \"realization\": \"You’re not trapped by the past—you’re searching for a map to move forward. Every reread is a step toward clarity, even if it feels like you’re going in circles. The act itself is a way of saying, 'I am still here, still learning.'\",\n  \"final_line\": \"Let the message be a mirror, not a prison.\",\n  \"visual_metaphor\": \"A person standing at the edge of a rain-soaked window, watching their own reflection ripple like water.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 150923131693,
+ "load_duration": 15853375003,
+ "prompt_eval_count": 316,
+ "prompt_eval_cached_count": 0,
+ "prompt_eval_duration": 17390811000,
+ "eval_count": 284,
+ "eval_duration": 117672297000
+}
