@@ -1,0 +1,84 @@
+# Writing-model acceptance gate — ROUND 2 (pre-registered before any generation).
+# Owner spec: gates are hard rejections BEFORE any quality points; the winner is
+# locked by digest only after passing this file's thresholds on the real runner.
+# Round 1 (4 models, blind) retired llama3.1:8b (production) and parked qwen3:8b (utility only).
+
+round: 2
+runner: {label: ubuntu-24.04, cpus: 4, ram_gb: 16, note: "free public-repo standard runner = production target"}
+ollama: {version: "0.40.6", num_ctx: 8192, think: false}
+generation:
+  writer: {temperature: 0.8}
+  retention_editor: {temperature: 0.35}
+  seeds_paired: [11, 101, 1009]      # identical (topic, seed) pairs for both models
+  repair_max_attempts: 2             # owner spec: two extra attempts, then failed_validation
+
+finalists:
+  - tag: "gemma4:12b"
+    round1_digest: "6114515d63c17436a7c0417d82820ac65ad643e2806c5a3c89cb62846436ed0b"
+    role_hint: "leading candidate — writer + retention editor"
+  - tag: "qwen3:14b"
+    round1_digest: "bdbd181c33f2ed1b31c972991882db3cf4d192569092138a7d29e973cd9debe8"
+    role_hint: "challenger — narrative stories in particular; hook law under suspicion"
+
+round1_record:  # evidence retained, losers included (never delete failures)
+  run_id: 39464319162
+  rejected_for_production: {tag: "llama3.1:8b", digest: "46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e",
+    why: "0/3 word-range compliance; camera directions inside narration; unverified 'research shows' claim"}
+  utility_reserve_only: {tag: "qwen3:8b", digest: "500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+    why: "aphorisms instead of scripts (0/3 length); duplicated after_image as hero_shot"}
+
+# Hard constraints per account (spoken fields only; titles/whys never counted).
+constraints:
+  account_01_psychology:
+    total_words: [150, 230]
+    hook_field: hook
+    hook_max_words: 12
+    beat_budgets:
+      hook: [8, 12]
+      curiosity: [32, 48]
+      psychological_mechanism: [60, 85]
+      realization: [45, 65]
+      final_line: [12, 20]
+    must_differ: [[psychological_mechanism, realization], [realization, final_line]]
+  account_02_storytelling:
+    total_words: [190, 300]
+    beat_budgets:
+      cold_open: [12, 22]
+      question: [12, 20]
+      journey: [61, 95]
+      discovery: [35, 55]
+      emotional_turn: [30, 50]
+      payoff: [30, 48]
+      after_image: [10, 18]
+    must_differ: [[after_image, hero_shot], [cold_open, question], [discovery, emotional_turn]]
+  shared:
+    min_english_ratio: 0.95
+    max_repetition_ratio: 0.15
+    duplication_threshold: 0.85
+
+topics:  # chosen in advance from DNA pillars / world library; identical for both models
+  account_01_psychology:
+    - {id: psy_reread_messages, pillar: inner_psychology,
+       brief: "Why you keep rereading old messages you once swore you would delete."}
+    - {id: psy_conflict_silence, pillar: social_behavior, claim_guard_probe: true,
+       brief: "Why some people go quiet in the middle of a conflict instead of arguing back."}
+  account_02_storytelling:
+    - {id: story_library_book, world: library,
+       brief: "A library book is returned exactly every ten years, always by a reader who never seems to age."}
+    - {id: story_lighthouse, world: seaside_town,
+       brief: "On storm nights the old lighthouse lamp lights itself, years after its keeper died."}
+# Editor tasks reuse the same topics with fixed weak drafts embedded in the harness
+# (psychology: flat + CTA; story: broken payoff + camera directions to remove).
+
+# Pre-registered pass thresholds — fixed BEFORE running; identical for both models.
+thresholds:
+  final_acceptance_rate_min_per_account: 0.85     # after <=2 repairs; no cross-account hiding
+  first_attempt_acceptance_rate_min: 0.40
+  median_time_to_acceptable_seconds_max: 480      # generation + validation + repairs, on-runner
+  blind_score_mean_min: 70                        # owner, 100-point rubric, post-gate only
+  blind_score_cell_min: 60                        # any account x task-type cell
+  zero_after_final_repair: [UNSUPPORTED_CLAIM, STAGE_DIRECTION_IN_NARRATION, BANNED_PHRASE]
+
+matrix:  # 2 models x 2 accounts x (write+edit) x 2 topics x 3 seeds = 48 primary generations
+  jobs: "model x account x task_type -> 8 parallel jobs of 6 generations each"
+  blind_owner_scoring: "median accepted output per (model, account, task_type) cell + borderline cases"
