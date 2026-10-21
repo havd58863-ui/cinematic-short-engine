@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T11:47:27.649018553Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"The Ghost of the Archive\",\n  \"hook_family\": \"recognition\",\n  \"hook\": \"You keep going back to what you promised to erase.\",\n  \"curiosity\": \"A deleted thread is a closed door, yet you still stand in the hallway. You tell yourself the folder is empty. But your thumb moves toward the screen again. Why does a dead conversation still feel like a living pulse?\",\n  \"psychological_mechanism\": \"It isn't the person you are chasing. It is the version of yourself that existed in those moments. When you read those words, you are trying to inhabit a skin you no longer wear. The brain treats old data as a map of a territory that has vanished. You are looking for a bridge back to a feeling you can no longer replicate in the present. It’s a desperate attempt to anchor a drifting identity.\",\n  \"realization\": \"We often mistake nostalgia for a desire to return. In reality, you are just trying to prove that you were once capable of feeling that much. The messages are a museum of your own intensity. You aren't looking for them because they matter now; you're looking because you fear the person you've become without them.\",\n  \"final_line\": \"Stop trying to live in the archive. The only version of you that exists is the one breathing right now.\",\n  \"visual_metaphor\": \"A hand reaching into a dark room to touch a reflection in a cracked mirror.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 71156651896,
+ "load_duration": 631514,
+ "prompt_eval_count": 319,
+ "prompt_eval_cached_count": 314,
+ "prompt_eval_duration": 681628000,
+ "eval_count": 324,
+ "eval_duration": 70286492000
+}

@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T11:44:59.324117954Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"The Archive of Ghosts\",\n  \"hook_family\": \"recognition\",\n  \"hook\": \"You keep reaching for words that no longer belong to you.\",\n  \"curiosity\": \"The delete button was a promise of closure. A wall you built to keep the past out. Yet, in the quiet hours, your thumb finds that specific thread again. It isn't a search for information. It is a search for a ghost.\",\n  \"psychological_mechanism\": \"We often treat old messages like archaeological sites. Each line is a fossil of a version of yourself that no longer exists. You aren't looking for the other person's intent anymore. You are trying to find the bridge between who you were then and who you are now. It is a form of emotional time travel. You scroll to verify that the feeling was real, seeking a tether to a moment that has already dissolved into static.\",\n  \"realization\": \"The compulsion isn't about regret. It's about the fear of forgetting. If the words disappear, the version of you who felt those things might vanish, too. You aren't haunting a conversation; you are trying to anchor your own history. You are terrified that if you stop looking back, the current version of you will have no foundation.\",\n  \"final_line\": \"Let the past stay written. You don't need to read it to know it happened.\",\n  \"visual_metaphor\": \"A hand tracing the dry, cracked texture of a stone wall in a dim hallway.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 101253408940,
+ "load_duration": 11922155324,
+ "prompt_eval_count": 319,
+ "prompt_eval_cached_count": 0,
+ "prompt_eval_duration": 14590977000,
+ "eval_count": 335,
+ "eval_duration": 74732704000
+}

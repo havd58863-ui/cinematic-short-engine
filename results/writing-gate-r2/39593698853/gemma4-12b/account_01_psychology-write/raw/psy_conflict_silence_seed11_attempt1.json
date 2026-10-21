@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T11:48:53.965743626Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"The Architecture of Silence\",\n  \"hook_family\": \"recognition\",\n  \"hook\": \"You haven't stopped caring. You've simply started to retreat.\",\n  \"curiosity\": \"In the heat of a rising argument, there is a sudden, heavy stillness. One person speaks, and the other simply... fades. It isn't a lack of words. It is a deliberate, internal withdrawal. A door closing behind a wall of noise.\",\n  \"psychological_mechanism\": \"Often, this isn't a tactic of power, but a survival of the self. When the volume of an external conflict exceeds the capacity of internal safety, the mind may choose a voluntary exile. It is a physiological pivot. The brain perceives the friction as a threat to the core. Rather than defending a position, the psyche seeks to preserve the person. It is the quiet of a house being evacuated during a storm.\",\n  \"realization\": \"You might mistake this silence for indifference or agreement. But it is often the sound of someone reaching their limit. They aren't choosing to be silent; they are being silenced by the exhaustion of trying to be understood. They are not absent. They are simply waiting for the air to clear enough to breathe again.\",\n  \"final_line\": \"Silence is not always a void. Sometimes, it is the only space left to hold.\",\n  \"visual_metaphor\": \"A single chair in a vast, empty hall, covered in a thin layer of dust.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 86314471279,
+ "load_duration": 628810,
+ "prompt_eval_count": 321,
+ "prompt_eval_cached_count": 0,
+ "prompt_eval_duration": 13283011000,
+ "eval_count": 328,
+ "eval_duration": 72851045000
+}

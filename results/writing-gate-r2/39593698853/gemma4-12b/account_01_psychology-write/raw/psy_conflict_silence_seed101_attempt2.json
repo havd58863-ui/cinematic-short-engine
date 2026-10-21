@@ -1,0 +1,17 @@
+{
+ "model": "gemma4:12b",
+ "created_at": "2026-10-21T11:51:11.804312477Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"title\": \"The Architecture of Silence\",\n  \"hook_family\": \"contradiction\",\n  \"hook\": \"Silence isn't always an absence of thought, but a sudden shield.\",\n  \"curiosity\": \"You watch them withdraw. The room grows heavy as their eyes drop. It looks like surrender, a hollow retreat into the shadows. But beneath the surface, a different storm is brewing. They aren't giving up. They are retreating inward to preserve something.\",\n  \"psychological_mechanism\": \"When a conflict reaches a certain frequency, the brain can perceive the noise as a physical threat. For some, the internal map prioritizes safety over victory. They might be experiencing a sudden, overwhelming flood of data—every sharp word becoming a weight they can no longer carry. In that moment, the ego shuts the door to prevent a total collapse. It is a survival reflex, a sudden choice to preserve the self by severing the connection.\",\n  \"realization\": \"Perhaps they aren't choosing to be quiet. Perhaps they are simply running out of air. When the cost of speaking becomes higher than the value of being heard, the only remaining territory is the inner world. They aren't hiding from the argument; they are protecting the pieces of themselves that the argument is trying to dismantle.\",\n  \"final_line\": \"Silence is sometimes the only way to keep the internal walls from crumbling.\",\n  \"visual_metaphor\": \"A person standing in a crowded room, watching a storm outside while their own hands remain perfectly still.\"\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 63786909495,
+ "load_duration": 731960,
+ "prompt_eval_count": 736,
+ "prompt_eval_cached_count": 316,
+ "prompt_eval_duration": 17816496000,
+ "eval_count": 328,
+ "eval_duration": 45827795000
+}
