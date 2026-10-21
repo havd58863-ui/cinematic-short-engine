@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T12:21:05.355125118Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"You keep rereading old messages you swore you'd delete.\",\n    \"curiosity\": \"What happens in the brain when you revisit words you once wanted to forget? Why do we return to conversations that no longer serve us?\",\n    \"psychological_mechanism\": \"The act of rereading is not about love or boredom—it's a survival mechanism. Our brains are wired to revisit the past for clues, comfort, or closure. When we read those messages again, we're not just looking at words; we're searching for meaning, reassurance, or a way to rewrite the story in our minds.\",\n    \"realization\": \"You're not stuck in the past—you're trying to make sense of it. Every time you go back, you're not repeating the past; you're trying to understand it.\",\n    \"final_line\": \"The message is still there. So are you.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"hook\",\n      \"change\": \"Replaced generic statement with a direct, emotionally charged statement about the behavior.\",\n      \"why\": \"The original hook was too vague and passive. A direct statement about the behavior creates immediate connection and curiosity.\"\n    },\n    {\n      \"where\": \"curiosity\",\n      \"change\": \"Shifted from surface-level questions to deeper psychological ones.\",\n      \"why\": \"The original curiosity section was shallow and focused on surface-level reasons like love and boredom. The revised version invites deeper reflection and engagement.\"\n    },\n    {\n      \"where\": \"psychological_mechanism\",\n      \"change\": \"Replaced surface explanations with a neuroscience-based explanation.\",\n      \"why\": \"The original draft relied on simplistic explanations. The revised version adds depth and scientific plausibility without overstepping into certainty.\"\n    },\n    {\n      \"where\": \"realization\",\n      \"change\": \"Shifted from a dismissive tone to an empathetic and empowering one.\",\n      \"why\": \"The original realization was dismissive and unhelpful. The revised version validates the behavior and reframes it as a meaningful process.\"\n    },\n    {\n      \"where\": \"final_line\",\n      \"change\": \"Replaced a call to action with a poetic, lingering statement.\",\n      \"why\": \"The original final line included a call to action, which violates the retention rules. The revised version ends with a memorable, emotionally resonant line.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 9,\n    \"open_loop\": 10,\n    \"midpoint_turn\": 9,\n    \"final_line_stick\": 10\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 206019979323,
+ "load_duration": 951000,
+ "prompt_eval_count": 447,
+ "prompt_eval_cached_count": 446,
+ "prompt_eval_duration": 370945000,
+ "eval_count": 556,
+ "eval_duration": 205477838000
+}

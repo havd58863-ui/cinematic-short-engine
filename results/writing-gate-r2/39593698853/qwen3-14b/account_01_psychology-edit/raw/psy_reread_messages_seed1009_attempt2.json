@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T12:27:54.23312666Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"You keep rereading old messages you swore you'd delete.\",\n    \"curiosity\": \"What happens in the brain when you revisit words you once wanted to forget? Why do we return to conversations that no longer serve us? A moment of loneliness, a sudden silence, or a memory of laughter—these can trigger the urge to go back, even when we know we shouldn't.\",\n    \"psychological_mechanism\": \"The act of rereading is not about love or boredom—it's a survival mechanism. Our brains are wired to revisit the past for clues, comfort, or closure. When we read those messages again, we're not just looking at words; we're searching for meaning, reassurance, or a way to rewrite the story in our minds. It's a way of trying to control what feels uncontrollable.\",\n    \"realization\": \"You're not stuck in the past—you're trying to make sense of it. Every time you go back, you're not repeating the past; you're trying to understand it. This behavior is not weakness, but a natural attempt to process emotions, find resolution, or simply hold on to something that once mattered.\",\n    \"final_line\": \"The message is still there. So are you. And so is the possibility of letting it go.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"curiosity\",\n      \"change\": \"Added a concrete moment (loneliness, silence, laughter) to expand the beat and meet the word count.\",\n      \"why\": \"The original curiosity beat was too short and lacked a specific example. Adding a concrete moment increases engagement and meets the minimum word requirement.\"\n    },\n    {\n      \"where\": \"psychological_mechanism\",\n      \"change\": \"Added the phrase 'It's a way of trying to control what feels uncontrollable' to expand the beat and meet the word count.\",\n      \"why\": \"This addition provides a deeper psychological insight without repeating previous content and meets the required word count.\"\n    },\n    {\n      \"where\": \"realization\",\n      \"change\": \"Expanded the realization beat with additional explanation about the behavior not being weakness and the possibility of resolution.\",\n      \"why\": \"The original realization was too brief and lacked depth. Adding these elements gives it emotional weight and meets the required word count.\"\n    },\n    {\n      \"where\": \"final_line\",\n      \"change\": \"Extended the final line with 'And so is the possibility of letting it go' to meet the word count.\",\n      \"why\": \"The original line was too short and lacked closure. This addition provides a more complete and emotionally resonant ending.\"\n    },\n    {\n      \"where\": \"script\",\n      \"change\": \"Expanded all sections with new content rather than filler to meet the total word count.\",\n      \"why\": \"The original script was too short overall. Expanding each beat with meaningful content ensures the total word count is met without sacrificing quality.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 10,\n    \"open_loop\": 10,\n    \"midpoint_turn\": 10,\n    \"final_line_stick\": 10\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 408876246489,
+ "load_duration": 1010635,
+ "prompt_eval_count": 1311,
+ "prompt_eval_cached_count": 434,
+ "prompt_eval_duration": 131148453000,
+ "eval_count": 670,
+ "eval_duration": 277625279000
+}

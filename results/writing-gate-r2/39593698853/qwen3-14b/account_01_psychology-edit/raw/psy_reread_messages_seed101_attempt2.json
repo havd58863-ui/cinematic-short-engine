@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T12:11:35.565000745Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"You open a message you swore you'd delete—and can't look away.\",\n    \"curiosity\": \"What happens in the brain when we revisit the past this way? Why do we return to words that once felt heavy, now light with longing? A single sentence, read again and again, can trigger a flood of memories—of laughter, of heartbreak, of a moment that shaped who you are today. What are we really searching for when we go back?\",\n    \"psychological_mechanism\": \"The act of rereading is not about clinging to the past, but about mapping the present onto it. Your brain is trying to understand where you are now by comparing it to where you were then. It's a way of making sense of change, of finding continuity in chaos. This is not weakness—it's a survival mechanism, a way of holding on to meaning when the world feels uncertain.\",\n    \"realization\": \"You're not stuck in the past. You're using it to navigate the present. Every message you revisit is a mirror, not a cage. It shows you who you were, but also who you are becoming. The act of looking back is not a failure—it's a step forward, a way of learning from what once was.\",\n    \"final_line\": \"What will you see when you look again—and what will it teach you about who you are now?\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"curiosity\",\n      \"change\": \"Expanded by adding a concrete moment—'a single sentence, read again and again, can trigger a flood of memories—of laughter, of heartbreak, of a moment that shaped who you are today.'\",\n      \"why\": \"This addition brings the curiosity beat up to the required word count and adds a vivid, relatable example that deepens engagement.\"\n    },\n    {\n      \"where\": \"realization\",\n      \"change\": \"Expanded by adding 'It shows you who you were, but also who you are becoming. The act of looking back is not a failure—it's a step forward, a way of learning from what once was.'\",\n      \"why\": \"This addition brings the realization beat up to the required word count and provides a more complete, emotionally resonant insight.\"\n    },\n    {\n      \"where\": \"final_line\",\n      \"change\": \"Expanded by adding '—and what will it teach you about who you are now?'\",\n      \"why\": \"This addition brings the final line up to the required word count and adds a new layer of reflection that invites the viewer to return to the message.\"\n    },\n    {\n      \"where\": \"script\",\n      \"change\": \"Expanded the total word count by adding new substance to each beat without filler.\",\n      \"why\": \"The original script was too short. By adding meaningful content to each beat, the total word count now meets the required minimum.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 9,\n    \"open_loop\": 10,\n    \"midpoint_turn\": 9,\n    \"final_line_stick\": 10\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 397674610260,
+ "load_duration": 964374,
+ "prompt_eval_count": 1297,
+ "prompt_eval_cached_count": 434,
+ "prompt_eval_duration": 129331525000,
+ "eval_count": 659,
+ "eval_duration": 268262131999
+}

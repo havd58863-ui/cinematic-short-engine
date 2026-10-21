@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T11:55:07.176788174Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"You open a message you swore you'd delete—and don't look away.\",\n    \"curiosity\": \"What happens when the past slips back into your fingers? You've told yourself you're done, yet here it is: a message from someone you once loved, once hurt, once forgot. You scroll, you hesitate, and then you read it again—just to feel something familiar, even if it's not what you want.\",\n    \"psychological_mechanism\": \"The brain doesn't erase memories—it archives them. Rereading old messages is a way of revisiting a version of yourself that still believed in something. It's not about the message, but the mirror it holds up to your present self. This act can be a form of emotional self-checking, a way to measure how far you've come or how much you've changed.\",\n    \"realization\": \"You're not chasing the past. You're trying to understand the present. Every reread is a question: Who am I now? What did I learn? What still lingers? It's not about going back, but about seeing where you are in the light of who you were.\",\n    \"final_line\": \"The message is just a door. You decide where it leads, and what you carry with you.\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"curiosity\",\n      \"change\": \"Added 'You scroll, you hesitate, and then you read it again—just to feel something familiar, even if it's not what you want.'\",\n      \"why\": \"Expanded the curiosity section to meet the word minimum by adding a concrete moment that illustrates the emotional tension of rereading messages.\"\n    },\n    {\n      \"where\": \"psychological_mechanism\",\n      \"change\": \"Added 'This act can be a form of emotional self-checking, a way to measure how far you've come or how much you've changed.'\",\n      \"why\": \"Expanded the psychological mechanism section to meet the word minimum by adding a concrete consequence of the behavior, deepening the explanation without restating prior content.\"\n    },\n    {\n      \"where\": \"realization\",\n      \"change\": \"Added 'It's not about going back, but about seeing where you are in the light of who you were.'\",\n      \"why\": \"Expanded the realization section to meet the word minimum by adding a reflective consequence that ties the behavior to self-awareness and growth.\"\n    },\n    {\n      \"where\": \"final_line\",\n      \"change\": \"Added 'and what you carry with you.'\",\n      \"why\": \"Expanded the final line to meet the word minimum by adding a subtle but meaningful consequence that reinforces the theme of agency and reflection.\"\n    },\n    {\n      \"where\": \"script\",\n      \"change\": \"Expanded all sections with new content as needed to meet the total word minimum without filler or repetition.\",\n      \"why\": \"The original script was too short. By adding new, meaningful content to each section, the total word count was increased to meet the required range.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 10,\n    \"open_loop\": 10,\n    \"midpoint_turn\": 10,\n    \"final_line_stick\": 10\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 433217369452,
+ "load_duration": 1056968,
+ "prompt_eval_count": 1356,
+ "prompt_eval_cached_count": 434,
+ "prompt_eval_duration": 138317795000,
+ "eval_count": 696,
+ "eval_duration": 294828198000
+}

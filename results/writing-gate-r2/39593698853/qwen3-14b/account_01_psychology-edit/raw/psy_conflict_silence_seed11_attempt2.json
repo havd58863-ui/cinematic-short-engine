@@ -1,0 +1,17 @@
+{
+ "model": "qwen3:14b",
+ "created_at": "2026-10-21T12:47:10.981776203Z",
+ "message": {
+  "role": "assistant",
+  "content": "{\n  \"revised_script\": {\n    \"hook\": \"Why do some people go silent when the argument gets loud?\",\n    \"curiosity\": \"It's not always about avoiding conflict. Sometimes, silence is a shield, a way to protect something deeper. What if the quietest moments hold the most unspoken truths? Imagine a child who freezes during a shouting match at home—this is not always fear, but a survival tactic they've learned over time.\",\n    \"psychological_mechanism\": \"In moments of high emotional tension, some people retreat inward. This isn't avoidance—it's a survival mechanism. Their mind may be trying to process, protect, or even prepare for a future confrontation. Silence can be a pause, not a surrender, and it often hides a need for safety, not control. This response is often rooted in past experiences where speaking up led to more harm than help.\",\n    \"realization\": \"Next time someone goes quiet, consider what might be hidden beneath the silence. It might not be an attack—it could be a cry for understanding. Think of a friend who withdraws during a heated conversation; they may be overwhelmed, not indifferent, and need space to gather their thoughts before they can respond.\",\n    \"final_line\": \"What do you hear when the words stop? What is left unsaid?\"\n  },\n  \"edits\": [\n    {\n      \"where\": \"curiosity\",\n      \"change\": \"Added 'Imagine a child who freezes during a shouting match at home—this is not always fear, but a survival tactic they've learned over time.'\",\n      \"why\": \"The original curiosity section was below the word minimum and lacked a concrete moment. This addition introduces a relatable scenario, expanding the beat without restating previous content.\"\n    },\n    {\n      \"where\": \"psychological_mechanism\",\n      \"change\": \"Added 'This response is often rooted in past experiences where speaking up led to more harm than help.'\",\n      \"why\": \"The original psychological mechanism section was below the word minimum. This addition provides a specific cause, deepening the explanation without repeating earlier content.\"\n    },\n    {\n      \"where\": \"realization\",\n      \"change\": \"Added 'Think of a friend who withdraws during a heated conversation; they may be overwhelmed, not indifferent, and need space to gather their thoughts before they can respond.'\",\n      \"why\": \"The original realization section was below the word minimum. This addition introduces a concrete consequence, enhancing the beat with new substance.\"\n    },\n    {\n      \"where\": \"final_line\",\n      \"change\": \"Changed 'What do you hear when the words stop?' to 'What do you hear when the words stop? What is left unsaid?'\",\n      \"why\": \"The original final line was below the word minimum. This revision expands the beat with a new, poetic question that invites reflection.\"\n    }\n  ],\n  \"self_scores\": {\n    \"hook_strength\": 9,\n    \"open_loop\": 10,\n    \"midpoint_turn\": 9,\n    \"final_line_stick\": 10\n  }\n}"
+ },
+ "done": true,
+ "done_reason": "stop",
+ "total_duration": 447280979266,
+ "load_duration": 916721,
+ "prompt_eval_count": 1577,
+ "prompt_eval_cached_count": 421,
+ "prompt_eval_duration": 173978788000,
+ "eval_count": 643,
+ "eval_duration": 273185449000
+}
