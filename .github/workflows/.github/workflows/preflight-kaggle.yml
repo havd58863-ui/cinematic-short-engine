@@ -22,18 +22,44 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${KAGGLE_JSON:-}" ]; then
+            {
+              echo "### Kaggle preflight — credential diagnosis"
+              echo
+              echo "Secret **KAGGLE_JSON** was not found at all. Check the secret's name (exactly KAGGLE_JSON)."
+            } >> "$GITHUB_STEP_SUMMARY"
             echo "::error::Secret KAGGLE_JSON is missing (the name must be exactly KAGGLE_JSON)"
             exit 1
           fi
-          mkdir -p "$HOME/.kaggle"
-          printf '%s' "$KAGGLE_JSON" > "$HOME/.kaggle/kaggle.json"
-          chmod 600 "$HOME/.kaggle/kaggle.json"
           python3 - << 'PY'
-          import json, os
-          p = os.path.expanduser("~/.kaggle/kaggle.json")
-          d = json.load(open(p))
-          print("kaggle.json parsed OK | username present:", bool(d.get("username")), "| key present:", bool(d.get("key")))
-          assert d.get("username") and d.get("key"), "kaggle.json must contain username + key"
+          import json, os, sys
+          s = os.environ["KAGGLE_JSON"].strip().lstrip("\ufeff")
+          shape = "json-object" if s.startswith("{") else "bare-token-or-key"
+          print(f"secret shape: {shape} | length: {len(s)} chars")
+          def fail(msg):
+              sp = os.environ.get("GITHUB_STEP_SUMMARY")
+              if sp:
+                  open(sp, "a").write("### Kaggle preflight — credential diagnosis\n\n" + msg + "\n")
+              print("::error::" + msg)
+              sys.exit(1)
+          if not s:
+              fail("KAGGLE_JSON secret is EMPTY.")
+          if not s.startswith("{"):
+              fail("KAGGLE_JSON does not start with '{'. Paste the ENTIRE kaggle.json content: one line that starts with { and ends with }.")
+          try:
+              d = json.loads(s)
+          except Exception as exc:
+              fail(f"KAGGLE_JSON looks like JSON but does not parse ({type(exc).__name__}). Re-copy the whole single line, first char {{ to last char }}.")
+          if not (isinstance(d, dict) and d.get("username") and d.get("key")):
+              fail("Parsed JSON lacks username and/or key. Use the file from 'Create Legacy API Key' exactly as downloaded.")
+          home = os.path.expanduser("~/.kaggle")
+          os.makedirs(home, exist_ok=True)
+          path = os.path.join(home, "kaggle.json")
+          open(path, "w").write(json.dumps(d))
+          os.chmod(path, 0o600)
+          genv = os.environ.get("GITHUB_ENV")
+          if genv:
+              open(genv, "a").write(f"KAGGLE_USERNAME={d['username']}\n")
+          print("credentials OK | username:", d["username"])
           PY
 
       - name: Install Kaggle CLI (diagnostic, unpinned on purpose)
@@ -51,11 +77,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p probe
-          USERNAME=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.kaggle/kaggle.json')))['username'])")
-          echo "KAGGLE_USERNAME=$USERNAME" >> "$GITHUB_ENV"
           cat > probe/kernel-metadata.json << JSON
           {
-            "id": "$USERNAME/cine-engine-gpu-probe",
+            "id": "$KAGGLE_USERNAME/cine-engine-gpu-probe",
             "title": "cine-engine-gpu-probe",
             "code_file": "probe.py",
             "language": "python",
@@ -122,7 +146,11 @@ jobs:
         run: |
           set -uo pipefail
           mkdir -p probe_out
-          kaggle kernels output "$KAGGLE_USERNAME/cine-engine-gpu-probe" -p probe_out || true
+          if [ -n "${KAGGLE_USERNAME:-}" ]; then
+            kaggle kernels output "$KAGGLE_USERNAME/cine-engine-gpu-probe" -p probe_out || true
+          else
+            echo "no username (credentials step failed earlier) — nothing to fetch"
+          fi
           ls -la probe_out || true
           {
             echo "### Kaggle GPU preflight (run ${{ github.run_id }})"
