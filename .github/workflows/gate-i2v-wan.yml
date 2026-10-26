@@ -1,0 +1,457 @@
+name: Gate — Kaggle Wan I2V
+
+# Visual-engine GATE (NOT production): Wan 2.2 TI2V-5B is the candidate after
+# LTX-Video 0.9.5 passed technically but FAILED visual quality (face/eyes/beak
+# morphed between frames). Same input image, same positive prompt, same seed,
+# same 448x768 as the LTX probe; deviations are only what the model requires
+# (61 = 4n+1 frames, vendor steps/guidance/negative prompt) and are recorded
+# in wan_gate.json. Automation can only pass TECHNICAL criteria (valid MP4,
+# real motion, frozen-pair fraction, peak VRAM, generation-time band); the
+# HUMAN visual criteria (identity/face stability across 5 sampled frames,
+# anatomy, prompt/camera motion, no flicker/melt) are judged afterwards from
+# the contact sheet + clip by the assistant and confirmed by the owner. Any
+# single hard failure rejects the candidate. Reuses the proven Kaggle
+# credential resolver from preflight-kaggle.yml. Manual dispatch only.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out repository (for the proven credential resolver)
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI 2.2.5 in an isolated venv
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/kaggle-venv"
+          "$RUNNER_TEMP/kaggle-venv/bin/python" -m pip install --disable-pip-version-check -q "kaggle==2.2.5"
+          echo "$RUNNER_TEMP/kaggle-venv/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/kaggle-venv/bin/kaggle" --version
+
+      - name: Resolve Kaggle credentials (reuse proven v7 resolver)
+        env:
+          KAGGLE_JSON: ${{ secrets.KAGGLE_JSON }}
+          KAGGLE_USERNAME_IN: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY_IN: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path(".github/workflows/preflight-kaggle.yml").read_text().splitlines()
+          start = next(i for i, line in enumerate(lines) if "python3 - << 'PY'" in line)
+          indent = len(lines[start]) - len(lines[start].lstrip(" "))
+          body = []
+          for line in lines[start + 1:]:
+              if line.strip() == "PY" and len(line) - len(line.lstrip(" ")) == indent:
+                  break
+              body.append(line[indent:] if line.startswith(" " * indent) else line)
+          if not body or "credentials OK via" not in "\n".join(body):
+              raise SystemExit("could not extract the proven Kaggle credential resolver")
+          Path("/tmp/kaggle_resolver.py").write_text("\n".join(body) + "\n")
+          print(f"extracted proven resolver: {len(body)} lines")
+          PY
+          python3 /tmp/kaggle_resolver.py
+
+      - name: Build Wan I2V gate kernel
+        run: |
+          set -euo pipefail
+          mkdir -p wan_gate
+          cat > wan_gate/kernel-metadata.json << JSON
+          {
+            "id": "$KAGGLE_USERNAME/cine-engine-wan-gate",
+            "title": "cine-engine-wan-gate",
+            "code_file": "wan_gate.py",
+            "language": "python",
+            "kernel_type": "script",
+            "is_private": true,
+            "enable_gpu": true,
+            "enable_tpu": false,
+            "enable_internet": true,
+            "machine_shape": "NvidiaTeslaT4",
+            "dataset_sources": [],
+            "kernel_sources": [],
+            "model_sources": []
+          }
+          JSON
+          cat > wan_gate/wan_gate.py << 'PY'
+          import json, os, resource, shutil, subprocess, sys, time, traceback
+          os.environ.setdefault("HF_HOME", "/kaggle/tmp/hf-cache")
+          os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+          os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+          os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+          WORK = "/kaggle/working"
+          STATUS_PATH = os.path.join(WORK, "wan_gate.json")
+          OUT_MP4 = os.path.join(WORK, "wan_gate.mp4")
+          OUT_CONTACT = os.path.join(WORK, "wan_gate_contact.jpg")
+          OUT_INPUT = os.path.join(WORK, "wan_gate_input.png")
+          MODEL_ID = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
+          MODEL_REVISION = "b8fff7315c768468a5333511427288870b2e9635"
+          IMAGE_URL = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/penguin.png"
+          WIDTH, HEIGHT, NUM_FRAMES, FPS, STEPS, SEED, GUIDANCE = 448, 768, 61, 24, 50, 20261026, 5.0
+          PROMPT = (
+              "A fluffy baby emperor penguin takes three small, careful steps toward the camera "
+              "across sparkling snow, gently balancing with its tiny flippers. Its head tilts with "
+              "curiosity and its soft feathers move naturally in a light Antarctic breeze. Golden "
+              "sunlight glows across the snow while another penguin remains softly blurred in the "
+              "background. The camera makes a very slow, smooth push-in, keeping the chick centered. "
+              "Photorealistic cinematic wildlife footage, coherent natural motion, stable anatomy."
+          )
+          # Vendor-recommended negative prompt for Wan 2.2 (official model card).
+          NEGATIVE_PROMPT = (
+              "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，"
+              "JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，"
+              "手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+          )
+          PACKAGES = [
+              "diffusers==0.42.0", "transformers==5.20.2", "accelerate==1.15.0",
+              "imageio==2.38.1", "imageio-ffmpeg==0.6.0", "sentencepiece==0.2.2",
+              "protobuf==7.36.2", "safetensors==0.8.0",
+          ]
+          started = time.time()
+          status = {
+              "status": "running", "phase": "start", "model": MODEL_ID,
+              "model_revision": MODEL_REVISION, "image_url": IMAGE_URL,
+              "settings": {"width": WIDTH, "height": HEIGHT, "num_frames": NUM_FRAMES,
+                           "fps": FPS, "steps": STEPS, "seed": SEED,
+                           "guidance_scale": GUIDANCE},
+              "prompt": PROMPT,
+              "deviations_vs_ltx_probe": [
+                  "61 frames (Wan requires 4n+1) vs 57 -> ~2.54s vs ~2.37s",
+                  "steps 50 + guidance 5.0 + official Wan negative prompt (vendor-recommended settings)",
+                  "SAME input image, positive prompt, seed, 448x768, 24fps, FP16 + model CPU offload, single T4",
+              ],
+              "phases_seconds": {},
+          }
+
+          def save_status():
+              status["elapsed_seconds"] = round(time.time() - started, 3)
+              with open(STATUS_PATH, "w") as f:
+                  json.dump(status, f, indent=2)
+
+          def phase(name, fn):
+              status["phase"] = name
+              save_status()
+              print(f"== PHASE: {name} ==", flush=True)
+              t0 = time.time()
+              result = fn()
+              status["phases_seconds"][name] = round(time.time() - t0, 3)
+              save_status()
+              return result
+
+          try:
+              os.makedirs("/kaggle/tmp/hf-cache", exist_ok=True)
+              os.makedirs(WORK, exist_ok=True)
+              status["disk"] = {}
+              for label, path in (("working", WORK), ("scratch", "/kaggle/tmp"), ("root", "/")):
+                  try:
+                      u = shutil.disk_usage(path)
+                      status["disk"][label] = {
+                          "total_gb": round(u.total / 1e9, 2),
+                          "free_gb": round(u.free / 1e9, 2),
+                      }
+                  except Exception as exc:
+                      status["disk"][label] = {"error": f"{type(exc).__name__}: {exc}"}
+              save_status()
+
+              def install_packages():
+                  subprocess.check_call([
+                      sys.executable, "-m", "pip", "install", "-q", "--no-cache-dir", *PACKAGES
+                  ])
+              phase("install_packages", install_packages)
+
+              import numpy as np
+              import torch
+              from PIL import Image
+
+              def check_gpu():
+                  status["python"] = sys.version
+                  status["torch"] = torch.__version__
+                  status["cuda_available"] = torch.cuda.is_available()
+                  status["device_count"] = torch.cuda.device_count()
+                  if not torch.cuda.is_available() or torch.cuda.device_count() < 1:
+                      raise RuntimeError("CUDA GPU was not granted to this Kaggle kernel")
+                  status["devices"] = [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())]
+                  status["vram_gb_device0"] = round(
+                      torch.cuda.get_device_properties(0).total_memory / 1e9, 2)
+                  try:
+                      for line in open("/proc/meminfo"):
+                          if line.startswith("MemTotal:"):
+                              status["ram_total_gb"] = round(int(line.split()[1]) / 1048576, 2)
+                  except Exception as exc:
+                      status["ram_total_error"] = f"{type(exc).__name__}: {exc}"
+                  smi = shutil.which("nvidia-smi") or "/opt/bin/nvidia-smi"
+                  if os.path.isfile(smi):
+                      r = subprocess.run([smi], capture_output=True, text=True)
+                      print(r.stdout or r.stderr)
+                  save_status()
+              phase("check_gpu", check_gpu)
+
+              from diffusers import AutoencoderKLWan, WanImageToVideoPipeline
+              from diffusers.utils import export_to_video, load_image
+
+              def load_input():
+                  image = load_image(IMAGE_URL).convert("RGB")
+                  image.save(OUT_INPUT)
+                  status["input_image_size"] = list(image.size)
+                  save_status()
+                  return image
+              image = phase("load_input_image", load_input)
+
+              def load_model():
+                  vae = AutoencoderKLWan.from_pretrained(
+                      MODEL_ID, subfolder="vae", revision=MODEL_REVISION,
+                      dtype=torch.float32)
+                  pipe = WanImageToVideoPipeline.from_pretrained(
+                      MODEL_ID, revision=MODEL_REVISION, vae=vae,
+                      dtype=torch.float16)
+                  if not pipe.config.expand_timesteps:
+                      raise RuntimeError(
+                          "expand_timesteps is not enabled; this checkpoint needs the "
+                          "Wan 2.2 5B first-frame timestep-mask conditioning path")
+                  pipe.enable_model_cpu_offload()
+                  try:
+                      pipe.vae.enable_tiling()
+                      status["vae_tiling"] = True
+                  except Exception as exc:  # recorded, never hidden
+                      status["vae_tiling"] = False
+                      status["vae_tiling_error"] = f"{type(exc).__name__}: {exc}"
+                  save_status()
+                  return pipe
+              pipe = phase("load_model", load_model)
+
+              def generate():
+                  torch.cuda.reset_peak_memory_stats(0)
+                  generator = torch.Generator(device="cuda").manual_seed(SEED)
+
+                  def run_pipe():
+                      return pipe(
+                          image=image,
+                          prompt=PROMPT,
+                          negative_prompt=NEGATIVE_PROMPT,
+                          height=HEIGHT,
+                          width=WIDTH,
+                          num_frames=NUM_FRAMES,
+                          num_inference_steps=STEPS,
+                          guidance_scale=GUIDANCE,
+                          generator=generator,
+                      )
+                  try:
+                      from torch.nn.attention import SDPBackend, sdpa_kernel
+                      status["sdpa_backends_preferred"] = ["EFFICIENT_ATTENTION", "MATH"]
+                      save_status()
+                      with sdpa_kernel([SDPBackend.EFFICIENT_ATTENTION, SDPBackend.MATH]):
+                          result = run_pipe()
+                  except ImportError:
+                      status["sdpa_backends_preferred"] = ["default"]
+                      save_status()
+                      result = run_pipe()
+                  return result.frames[0]
+              frames = phase("generate_video", generate)
+
+              def export_and_measure():
+                  export_to_video(frames, OUT_MP4, fps=FPS)
+                  small = [
+                      np.asarray(frame.convert("L").resize((112, 192)), dtype=np.float32)
+                      for frame in frames
+                  ]
+                  diffs = [
+                      float(np.mean(np.abs(small[i] - small[i - 1])))
+                      for i in range(1, len(small))
+                  ]
+                  frozen_fraction = (
+                      sum(1 for d in diffs if d < 0.15) / len(diffs) if diffs else 1.0)
+                  source_small = np.asarray(
+                      image.convert("L").resize((112, 192)), dtype=np.float32)
+                  n = len(frames)
+                  picks = [frames[i] for i in (0, n // 4, n // 2, (3 * n) // 4, n - 1)]
+                  thumbs = [f.resize((224, 384)) for f in picks]
+                  sheet = Image.new("RGB", (224 * len(thumbs), 384), "black")
+                  for i, thumb in enumerate(thumbs):
+                      sheet.paste(thumb, (224 * i, 0))
+                  sheet.save(OUT_CONTACT, quality=92)
+                  import imageio.v2 as imageio
+                  reader = imageio.get_reader(OUT_MP4)
+                  meta = reader.get_meta_data()
+                  decoded_frames = sum(1 for _ in reader)
+                  reader.close()
+                  status["output"] = {
+                      "file": os.path.basename(OUT_MP4),
+                      "bytes": os.path.getsize(OUT_MP4),
+                      "frames_generated": len(frames),
+                      "frames_decoded": decoded_frames,
+                      "width": frames[0].width,
+                      "height": frames[0].height,
+                      "fps": FPS,
+                      "duration_seconds": round(len(frames) / FPS, 3),
+                      "reader_meta": {k: str(v) for k, v in meta.items()},
+                      "motion_mean_abs_diff": round(float(np.mean(diffs)), 4) if diffs else 0.0,
+                      "motion_median_abs_diff": round(float(np.median(diffs)), 4) if diffs else 0.0,
+                      "frozen_pair_fraction": round(float(frozen_fraction), 4),
+                      "first_last_abs_diff": round(float(np.mean(np.abs(small[-1] - small[0]))), 4),
+                      "first_frame_vs_input_abs_diff": round(
+                          float(np.mean(np.abs(small[0] - source_small))), 4),
+                      "peak_vram_allocated_gb": round(torch.cuda.max_memory_allocated(0) / 1e9, 3),
+                      "peak_vram_reserved_gb": round(torch.cuda.max_memory_reserved(0) / 1e9, 3),
+                      "peak_rss_gb": round(
+                          resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1048576, 3),
+                  }
+                  save_status()
+              phase("export_and_measure", export_and_measure)
+
+              status["status"] = "success"
+              status["phase"] = "complete"
+              save_status()
+              print("WAN_GATE_JSON:", json.dumps(status, sort_keys=True))
+          except Exception as exc:  # named and preserved, never hidden
+              status["status"] = "failed"
+              status["error"] = f"{type(exc).__name__}: {exc}"
+              status["traceback_tail"] = traceback.format_exc()[-6000:]
+              save_status()
+              print("WAN_GATE_FAILED:", status["error"], flush=True)
+              raise
+          PY
+          ls -la wan_gate
+
+      - name: Push Wan gate kernel and wait for completion
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p wan_gate --accelerator NvidiaTeslaT4
+          kernel_state="timeout"
+          for i in $(seq 1 180); do
+            out=$(kaggle kernels status "$KAGGLE_USERNAME/cine-engine-wan-gate" 2>&1 || true)
+            echo "poll $i: $out"
+            low=$(printf '%s' "$out" | tr '[:upper:]' '[:lower:]')
+            case "$low" in
+              *complete*) kernel_state="complete"; echo "kernel complete"; break ;;
+              *error*|*cancel*) kernel_state="error"; break ;;
+            esac
+            sleep 60
+          done
+          if [ "$kernel_state" != "complete" ]; then
+            echo "::error::Wan gate kernel did not complete successfully (state: $kernel_state) — read wan_out logs in summary/artifact"
+            exit 1
+          fi
+
+      - name: Fetch gate output, verify technical criteria, and write summary
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p wan_out
+          if [ -n "${KAGGLE_USERNAME:-}" ]; then
+            kaggle kernels output "$KAGGLE_USERNAME/cine-engine-wan-gate" -p wan_out || true
+          else
+            echo "no username (credentials step failed earlier) — nothing to fetch"
+          fi
+          find wan_out -maxdepth 2 -type f -printf '%p %s bytes\n' || true
+          {
+            echo "### Kaggle Wan 2.2 TI2V-5B visual gate (run ${{ github.run_id }})"
+            echo
+            echo "Pre-registered HUMAN visual criteria — automation can NOT pass these;"
+            echo "they are judged from wan_gate_contact.jpg + wan_gate.mp4 by the assistant"
+            echo "and confirmed by the owner before any model lock:"
+            echo "1) face/eyes/beak identity stable in all 5 sampled frames (the exact LTX failure);"
+            echo "2) no extra limbs / deformed anatomy; feathers coherent;"
+            echo "3) visible prompt motion: steps toward camera + slow push-in;"
+            echo "4) no flicker or melting between sampled frames."
+            echo "Generation-time bands: <=1200s green; 1201-2400s amber (speed-flagged,"
+            echo "optimization required before production); >2400s technical fail."
+            echo
+            if [ -f wan_out/wan_gate.json ]; then
+              echo '```json'
+              cat wan_out/wan_gate.json
+              echo
+              echo '```'
+            else
+              echo "_no wan_gate.json returned — kernel log below tells why._"
+            fi
+            for f in wan_out/*.log; do
+              if [ -f "$f" ]; then
+                echo
+                echo "#### $f"
+                echo '```'
+                tail -c 6000 "$f" || true
+                echo '```'
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          python3 - << 'PY'
+          import json, os, sys
+          root = "wan_out"
+          js = os.path.join(root, "wan_gate.json")
+          mp4 = os.path.join(root, "wan_gate.mp4")
+          problems = []
+          info = {}
+          if not os.path.isfile(js):
+              problems.append("wan_gate.json was not returned")
+          else:
+              try:
+                  info = json.load(open(js))
+              except Exception as exc:  # named, never hidden
+                  problems.append(f"could not parse wan_gate.json ({type(exc).__name__}: {exc})")
+          if info and info.get("status") != "success":
+              problems.append(f"kernel status is {info.get('status')!r}: {info.get('error')}")
+          out = info.get("output", {}) if isinstance(info, dict) else {}
+          gen_seconds = (info.get("phases_seconds", {}) or {}).get("generate_video")
+          if not os.path.isfile(mp4):
+              problems.append("wan_gate.mp4 was not returned")
+          elif os.path.getsize(mp4) < 100_000:
+              problems.append(f"wan_gate.mp4 is suspiciously small ({os.path.getsize(mp4)} bytes)")
+          if out:
+              if out.get("width") != 448 or out.get("height") != 768:
+                  problems.append(f"unexpected dimensions {out.get('width')}x{out.get('height')}")
+              if (out.get("frames_decoded") or 0) < 57:
+                  problems.append(f"too few decoded frames: {out.get('frames_decoded')}")
+              if (out.get("duration_seconds") or 0) < 2.3:
+                  problems.append(f"duration too short: {out.get('duration_seconds')}")
+              if (out.get("motion_mean_abs_diff") or 0) < 0.5:
+                  problems.append(
+                      "inter-frame motion is too low "
+                      f"({out.get('motion_mean_abs_diff')}); clip may be effectively frozen")
+              if (out.get("frozen_pair_fraction") or 0) > 0.20:
+                  problems.append(
+                      "too many near-frozen frame pairs "
+                      f"({out.get('frozen_pair_fraction')})")
+              if (out.get("peak_vram_allocated_gb") or 0) > 15.0:
+                  problems.append(
+                      "peak VRAM leaves no T4 headroom "
+                      f"({out.get('peak_vram_allocated_gb')} GB)")
+          if gen_seconds is not None and gen_seconds > 2400:
+              problems.append(f"generation too slow for production ({gen_seconds}s > 2400s)")
+          if problems:
+              print("::error::WAN GATE TECHNICAL FAIL: " + "; ".join(problems))
+              sys.exit(1)
+          band = "green" if (gen_seconds or 0) <= 1200 else "amber-speed-flagged"
+          print(
+              "WAN GATE TECHNICAL PASS "
+              f"[time band: {band}] | "
+              f"{out.get('width')}x{out.get('height')} | "
+              f"{out.get('frames_decoded')} frames | "
+              f"{out.get('duration_seconds')}s | "
+              f"motion {out.get('motion_mean_abs_diff')} | "
+              f"frozen {out.get('frozen_pair_fraction')} | "
+              f"peak VRAM {out.get('peak_vram_allocated_gb')} GB | "
+              f"generate {gen_seconds}s | "
+              f"total {info.get('elapsed_seconds')}s"
+          )
+          print(
+              "VISUAL GATE STILL PENDING: identity/anatomy/motion/flicker must be judged "
+              "by humans from wan_gate_contact.jpg + wan_gate.mp4. "
+              "The model is NOT approved by this automation."
+          )
+          PY
+
+      - name: Upload Wan gate artifacts (MP4 + metrics + contact sheet)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaggle-wan-gate-${{ github.run_id }}
+          path: wan_out/
+          if-no-files-found: warn
