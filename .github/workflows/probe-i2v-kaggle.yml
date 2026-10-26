@@ -1,0 +1,372 @@
+name: Probe — Kaggle LTX I2V
+
+# One-shot visual-engine probe (NOT production): reuses the proven Kaggle
+# credential resolver from preflight-kaggle.yml, pushes a T4 kernel that
+# generates ONE real image-to-video clip with LTX-Video 0.9.5, then verifies
+# that an MP4 came back with real inter-frame motion. Manual dispatch only.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out repository (for the proven credential resolver)
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI 2.2.5 in an isolated venv
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/kaggle-venv"
+          "$RUNNER_TEMP/kaggle-venv/bin/python" -m pip install --disable-pip-version-check -q "kaggle==2.2.5"
+          echo "$RUNNER_TEMP/kaggle-venv/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/kaggle-venv/bin/kaggle" --version
+
+      - name: Resolve Kaggle credentials (reuse proven v7 resolver)
+        env:
+          KAGGLE_JSON: ${{ secrets.KAGGLE_JSON }}
+          KAGGLE_USERNAME_IN: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY_IN: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path(".github/workflows/preflight-kaggle.yml").read_text().splitlines()
+          start = next(i for i, line in enumerate(lines) if "python3 - << 'PY'" in line)
+          indent = len(lines[start]) - len(lines[start].lstrip(" "))
+          body = []
+          for line in lines[start + 1:]:
+              if line.strip() == "PY" and len(line) - len(line.lstrip(" ")) == indent:
+                  break
+              body.append(line[indent:] if line.startswith(" " * indent) else line)
+          if not body or "credentials OK via" not in "\n".join(body):
+              raise SystemExit("could not extract the proven Kaggle credential resolver")
+          Path("/tmp/kaggle_resolver.py").write_text("\n".join(body) + "\n")
+          print(f"extracted proven resolver: {len(body)} lines")
+          PY
+          python3 /tmp/kaggle_resolver.py
+
+      - name: Build LTX image-to-video probe kernel
+        run: |
+          set -euo pipefail
+          mkdir -p i2v_probe
+          cat > i2v_probe/kernel-metadata.json << JSON
+          {
+            "id": "$KAGGLE_USERNAME/cine-engine-i2v-probe",
+            "title": "cine-engine-i2v-probe",
+            "code_file": "i2v_probe.py",
+            "language": "python",
+            "kernel_type": "script",
+            "is_private": true,
+            "enable_gpu": true,
+            "enable_tpu": false,
+            "enable_internet": true,
+            "machine_shape": "NvidiaTeslaT4",
+            "dataset_sources": [],
+            "kernel_sources": [],
+            "model_sources": []
+          }
+          JSON
+          cat > i2v_probe/i2v_probe.py << 'PY'
+          import json, os, shutil, subprocess, sys, time, traceback
+          os.environ.setdefault("HF_HOME", "/kaggle/tmp/hf-cache")
+          os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+          os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+          os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+          WORK = "/kaggle/working"
+          STATUS_PATH = os.path.join(WORK, "i2v_probe.json")
+          OUT_MP4 = os.path.join(WORK, "i2v_probe.mp4")
+          OUT_CONTACT = os.path.join(WORK, "i2v_probe_contact.jpg")
+          OUT_INPUT = os.path.join(WORK, "i2v_probe_input.png")
+          MODEL_ID = "Lightricks/LTX-Video-0.9.5"
+          MODEL_REVISION = "e58e28c39631af4d1468ee57a853764e11c1d37e"
+          IMAGE_URL = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/penguin.png"
+          WIDTH, HEIGHT, NUM_FRAMES, FPS, STEPS, SEED = 448, 768, 57, 24, 40, 20261026
+          PROMPT = (
+              "A fluffy baby emperor penguin takes three small, careful steps toward the camera "
+              "across sparkling snow, gently balancing with its tiny flippers. Its head tilts with "
+              "curiosity and its soft feathers move naturally in a light Antarctic breeze. Golden "
+              "sunlight glows across the snow while another penguin remains softly blurred in the "
+              "background. The camera makes a very slow, smooth push-in, keeping the chick centered. "
+              "Photorealistic cinematic wildlife footage, coherent natural motion, stable anatomy."
+          )
+          NEGATIVE_PROMPT = (
+              "worst quality, inconsistent motion, blurry, jittery, distorted, deformed feet, "
+              "extra limbs, morphing face, frozen frame, abrupt cuts"
+          )
+          PACKAGES = [
+              "diffusers==0.42.0", "transformers==5.20.2", "accelerate==1.15.0",
+              "imageio==2.38.1", "imageio-ffmpeg==0.6.0", "sentencepiece==0.2.2",
+              "protobuf==7.36.2", "safetensors==0.8.0",
+          ]
+          started = time.time()
+          status = {
+              "status": "running", "phase": "start", "model": MODEL_ID,
+              "model_revision": MODEL_REVISION, "image_url": IMAGE_URL,
+              "settings": {"width": WIDTH, "height": HEIGHT, "num_frames": NUM_FRAMES,
+                           "fps": FPS, "steps": STEPS, "seed": SEED},
+              "prompt": PROMPT, "phases_seconds": {},
+          }
+
+          def save_status():
+              status["elapsed_seconds"] = round(time.time() - started, 3)
+              with open(STATUS_PATH, "w") as f:
+                  json.dump(status, f, indent=2)
+
+          def phase(name, fn):
+              status["phase"] = name
+              save_status()
+              print(f"== PHASE: {name} ==", flush=True)
+              t0 = time.time()
+              result = fn()
+              status["phases_seconds"][name] = round(time.time() - t0, 3)
+              save_status()
+              return result
+
+          try:
+              os.makedirs("/kaggle/tmp/hf-cache", exist_ok=True)
+              os.makedirs(WORK, exist_ok=True)
+              status["disk"] = {}
+              for label, path in (("working", WORK), ("scratch", "/kaggle/tmp"), ("root", "/")):
+                  try:
+                      u = shutil.disk_usage(path)
+                      status["disk"][label] = {
+                          "total_gb": round(u.total / 1e9, 2),
+                          "free_gb": round(u.free / 1e9, 2),
+                      }
+                  except Exception as exc:
+                      status["disk"][label] = {"error": f"{type(exc).__name__}: {exc}"}
+              save_status()
+
+              def install_packages():
+                  subprocess.check_call([
+                      sys.executable, "-m", "pip", "install", "-q", "--no-cache-dir", *PACKAGES
+                  ])
+              phase("install_packages", install_packages)
+
+              import numpy as np
+              import torch
+              from PIL import Image
+
+              def check_gpu():
+                  status["python"] = sys.version
+                  status["torch"] = torch.__version__
+                  status["cuda_available"] = torch.cuda.is_available()
+                  status["device_count"] = torch.cuda.device_count()
+                  if not torch.cuda.is_available() or torch.cuda.device_count() < 1:
+                      raise RuntimeError("CUDA GPU was not granted to this Kaggle kernel")
+                  status["devices"] = [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())]
+                  status["vram_gb_device0"] = round(
+                      torch.cuda.get_device_properties(0).total_memory / 1e9, 2)
+                  smi = shutil.which("nvidia-smi") or "/opt/bin/nvidia-smi"
+                  if os.path.isfile(smi):
+                      r = subprocess.run([smi], capture_output=True, text=True)
+                      print(r.stdout or r.stderr)
+                  save_status()
+              phase("check_gpu", check_gpu)
+
+              from diffusers import LTXImageToVideoPipeline
+              from diffusers.utils import export_to_video, load_image
+
+              def load_input():
+                  image = load_image(IMAGE_URL).convert("RGB")
+                  image.save(OUT_INPUT)
+                  status["input_image_size"] = list(image.size)
+                  save_status()
+                  return image
+              image = phase("load_input_image", load_input)
+
+              def load_model():
+                  pipe = LTXImageToVideoPipeline.from_pretrained(
+                      MODEL_ID, revision=MODEL_REVISION, dtype=torch.float16)
+                  pipe.enable_model_cpu_offload()
+                  pipe.vae.enable_slicing()
+                  pipe.vae.enable_tiling()
+                  return pipe
+              pipe = phase("load_model", load_model)
+
+              def generate():
+                  torch.cuda.reset_peak_memory_stats(0)
+                  generator = torch.Generator(device="cuda").manual_seed(SEED)
+                  result = pipe(
+                      image=image,
+                      prompt=PROMPT,
+                      negative_prompt=NEGATIVE_PROMPT,
+                      width=WIDTH,
+                      height=HEIGHT,
+                      num_frames=NUM_FRAMES,
+                      frame_rate=FPS,
+                      num_inference_steps=STEPS,
+                      guidance_scale=3.0,
+                      decode_timestep=0.05,
+                      decode_noise_scale=0.025,
+                      generator=generator,
+                  )
+                  return result.frames[0]
+              frames = phase("generate_video", generate)
+
+              def export_and_measure():
+                  export_to_video(frames, OUT_MP4, fps=FPS)
+                  small = [
+                      np.asarray(frame.convert("L").resize((112, 192)), dtype=np.float32)
+                      for frame in frames
+                  ]
+                  diffs = [
+                      float(np.mean(np.abs(small[i] - small[i - 1])))
+                      for i in range(1, len(small))
+                  ]
+                  picks = [frames[0], frames[len(frames) // 2], frames[-1]]
+                  thumbs = [f.resize((224, 384)) for f in picks]
+                  sheet = Image.new("RGB", (224 * len(thumbs), 384), "black")
+                  for i, thumb in enumerate(thumbs):
+                      sheet.paste(thumb, (224 * i, 0))
+                  sheet.save(OUT_CONTACT, quality=92)
+                  import imageio.v2 as imageio
+                  reader = imageio.get_reader(OUT_MP4)
+                  meta = reader.get_meta_data()
+                  decoded_frames = sum(1 for _ in reader)
+                  reader.close()
+                  status["output"] = {
+                      "file": os.path.basename(OUT_MP4),
+                      "bytes": os.path.getsize(OUT_MP4),
+                      "frames_generated": len(frames),
+                      "frames_decoded": decoded_frames,
+                      "width": frames[0].width,
+                      "height": frames[0].height,
+                      "fps": FPS,
+                      "duration_seconds": round(len(frames) / FPS, 3),
+                      "reader_meta": {k: str(v) for k, v in meta.items()},
+                      "motion_mean_abs_diff": round(float(np.mean(diffs)), 4) if diffs else 0.0,
+                      "motion_median_abs_diff": round(float(np.median(diffs)), 4) if diffs else 0.0,
+                      "first_last_abs_diff": round(float(np.mean(np.abs(small[-1] - small[0]))), 4),
+                      "peak_vram_allocated_gb": round(torch.cuda.max_memory_allocated(0) / 1e9, 3),
+                      "peak_vram_reserved_gb": round(torch.cuda.max_memory_reserved(0) / 1e9, 3),
+                  }
+                  save_status()
+              phase("export_and_measure", export_and_measure)
+
+              status["status"] = "success"
+              status["phase"] = "complete"
+              save_status()
+              print("I2V_PROBE_JSON:", json.dumps(status, sort_keys=True))
+          except Exception as exc:  # named and preserved, never hidden
+              status["status"] = "failed"
+              status["error"] = f"{type(exc).__name__}: {exc}"
+              status["traceback_tail"] = traceback.format_exc()[-6000:]
+              save_status()
+              print("I2V_PROBE_FAILED:", status["error"], flush=True)
+              raise
+          PY
+          ls -la i2v_probe
+
+      - name: Push I2V probe kernel and wait for completion
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p i2v_probe --accelerator NvidiaTeslaT4
+          kernel_state="timeout"
+          for i in $(seq 1 180); do
+            out=$(kaggle kernels status "$KAGGLE_USERNAME/cine-engine-i2v-probe" 2>&1 || true)
+            echo "poll $i: $out"
+            low=$(printf '%s' "$out" | tr '[:upper:]' '[:lower:]')
+            case "$low" in
+              *complete*) kernel_state="complete"; echo "kernel complete"; break ;;
+              *error*|*cancel*) kernel_state="error"; break ;;
+            esac
+            sleep 60
+          done
+          if [ "$kernel_state" != "complete" ]; then
+            echo "::error::I2V kernel did not complete successfully (state: $kernel_state) — read i2v_out logs in summary/artifact"
+            exit 1
+          fi
+
+      - name: Fetch I2V output, verify real motion, and write summary
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p i2v_out
+          if [ -n "${KAGGLE_USERNAME:-}" ]; then
+            kaggle kernels output "$KAGGLE_USERNAME/cine-engine-i2v-probe" -p i2v_out || true
+          else
+            echo "no username (credentials step failed earlier) — nothing to fetch"
+          fi
+          find i2v_out -maxdepth 2 -type f -printf '%p %s bytes\n' || true
+          {
+            echo "### Kaggle LTX image-to-video probe (run ${{ github.run_id }})"
+            echo
+            if [ -f i2v_out/i2v_probe.json ]; then
+              echo '```json'
+              cat i2v_out/i2v_probe.json
+              echo
+              echo '```'
+            else
+              echo "_no i2v_probe.json returned — kernel log below tells why._"
+            fi
+            for f in i2v_out/*.log; do
+              if [ -f "$f" ]; then
+                echo
+                echo "#### $f"
+                echo '```'
+                tail -c 6000 "$f" || true
+                echo '```'
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          python3 - << 'PY'
+          import json, os, sys
+          root = "i2v_out"
+          js = os.path.join(root, "i2v_probe.json")
+          mp4 = os.path.join(root, "i2v_probe.mp4")
+          problems = []
+          info = {}
+          if not os.path.isfile(js):
+              problems.append("i2v_probe.json was not returned")
+          else:
+              try:
+                  info = json.load(open(js))
+              except Exception as exc:  # named, never hidden
+                  problems.append(f"could not parse i2v_probe.json ({type(exc).__name__}: {exc})")
+          if info and info.get("status") != "success":
+              problems.append(f"kernel status is {info.get('status')!r}: {info.get('error')}")
+          out = info.get("output", {}) if isinstance(info, dict) else {}
+          if not os.path.isfile(mp4):
+              problems.append("i2v_probe.mp4 was not returned")
+          elif os.path.getsize(mp4) < 100_000:
+              problems.append(f"i2v_probe.mp4 is suspiciously small ({os.path.getsize(mp4)} bytes)")
+          if out:
+              if out.get("width") != 448 or out.get("height") != 768:
+                  problems.append(f"unexpected dimensions {out.get('width')}x{out.get('height')}")
+              if (out.get("frames_decoded") or 0) < 50:
+                  problems.append(f"too few decoded frames: {out.get('frames_decoded')}")
+              if (out.get("duration_seconds") or 0) < 2.0:
+                  problems.append(f"duration too short: {out.get('duration_seconds')}")
+              if (out.get("motion_mean_abs_diff") or 0) < 0.5:
+                  problems.append(
+                      "inter-frame motion is too low "
+                      f"({out.get('motion_mean_abs_diff')}); clip may be effectively frozen")
+          if problems:
+              print("::error::I2V NOT PROVEN: " + "; ".join(problems))
+              sys.exit(1)
+          print(
+              "I2V PROVEN: "
+              f"{out.get('width')}x{out.get('height')} | "
+              f"{out.get('frames_decoded')} frames | "
+              f"{out.get('duration_seconds')}s | "
+              f"motion {out.get('motion_mean_abs_diff')} | "
+              f"peak VRAM {out.get('peak_vram_allocated_gb')} GB | "
+              f"total {info.get('elapsed_seconds')}s"
+          )
+          PY
+
+      - name: Upload I2V probe artifacts (MP4 + metrics + frames)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaggle-i2v-probe-${{ github.run_id }}
+          path: i2v_out/
+          if-no-files-found: warn
