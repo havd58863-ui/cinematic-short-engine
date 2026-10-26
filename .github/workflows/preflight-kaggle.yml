@@ -26,7 +26,7 @@ jobs:
           echo "$RUNNER_TEMP/kaggle-venv/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/kaggle-venv/bin/kaggle" --version
 
-      - name: Resolve Kaggle credentials v5 (generic recovery + shape metadata)
+      - name: Resolve Kaggle credentials v6 (generic recovery + shape metadata)
         env:
           KAGGLE_JSON: ${{ secrets.KAGGLE_JSON }}
           KAGGLE_USERNAME_IN: ${{ secrets.KAGGLE_USERNAME }}
@@ -357,24 +357,45 @@ jobs:
             "enable_gpu": true,
             "enable_tpu": false,
             "enable_internet": true,
+            "machine_shape": "NvidiaTeslaT4",
             "dataset_sources": [],
             "kernel_sources": [],
             "model_sources": []
           }
           JSON
           cat > probe/probe.py << 'PY'
-          import json, subprocess, sys, time
+          import json, os, shutil, subprocess, sys, time
           print("python:", sys.version)
+          info = {}
+          smi_candidates = [
+              shutil.which("nvidia-smi"),
+              "/usr/bin/nvidia-smi",
+              "/usr/local/nvidia/bin/nvidia-smi",
+              "/opt/bin/nvidia-smi",
+          ]
+          smi_path = next((p for p in smi_candidates if p and os.path.isfile(p)), None)
+          info["nvidia_smi_path"] = smi_path
           print("== nvidia-smi ==")
-          r = subprocess.run(["nvidia-smi"], capture_output=True, text=True)
-          print(r.stdout or r.stderr)
-          info = {"nvidia_smi_exit": r.returncode}
+          if smi_path:
+              try:
+                  r = subprocess.run([smi_path], capture_output=True, text=True)
+                  print(r.stdout or r.stderr)
+                  info["nvidia_smi_exit"] = r.returncode
+              except Exception as exc:  # named, never hidden
+                  info["nvidia_smi_exit"] = None
+                  info["nvidia_smi_error"] = f"{type(exc).__name__}: {exc}"
+          else:
+              info["nvidia_smi_exit"] = None
+              info["nvidia_smi_error"] = "nvidia-smi not found on PATH or common GPU locations"
+              print(info["nvidia_smi_error"])
           try:
               import torch
               info["torch"] = torch.__version__
               info["cuda_available"] = torch.cuda.is_available()
+              info["device_count"] = torch.cuda.device_count()
               if torch.cuda.is_available():
                   info["device"] = torch.cuda.get_device_name(0)
+                  info["devices"] = [torch.cuda.get_device_name(i) for i in range(info["device_count"])]
                   info["vram_gb"] = round(torch.cuda.get_device_properties(0).total_memory / 1e9, 2)
                   x = torch.randn(1024, 1024, device="cuda")
                   t0 = time.time()
@@ -398,17 +419,22 @@ jobs:
       - name: Push probe kernel and wait for the GPU verdict
         run: |
           set -euo pipefail
-          kaggle kernels push -p probe
+          kaggle kernels push -p probe --accelerator NvidiaTeslaT4
+          kernel_state="timeout"
           for i in $(seq 1 40); do
             out=$(kaggle kernels status "$KAGGLE_USERNAME/cine-engine-gpu-probe" 2>&1 || true)
             echo "poll $i: $out"
             low=$(printf '%s' "$out" | tr '[:upper:]' '[:lower:]')
             case "$low" in
-              *complete*) echo "kernel complete"; break ;;
-              *error*|*cancel*) echo "::error::kernel ended in a bad state — read probe_out logs in summary/artifact"; break ;;
+              *complete*) kernel_state="complete"; echo "kernel complete"; break ;;
+              *error*|*cancel*) kernel_state="error"; break ;;
             esac
             sleep 30
           done
+          if [ "$kernel_state" != "complete" ]; then
+            echo "::error::kernel did not complete successfully (state: $kernel_state) — read probe_out logs in summary/artifact"
+            exit 1
+          fi
 
       - name: Fetch probe output and write summary (phone-readable)
         if: always()
@@ -418,35 +444,4 @@ jobs:
           if [ -n "${KAGGLE_USERNAME:-}" ]; then
             kaggle kernels output "$KAGGLE_USERNAME/cine-engine-gpu-probe" -p probe_out || true
           else
-            echo "no username (credentials step failed earlier) — nothing to fetch"
-          fi
-          ls -la probe_out || true
-          {
-            echo "### Kaggle GPU preflight (run ${{ github.run_id }})"
-            echo
-            if [ -f probe_out/gpu_probe.json ]; then
-              echo '```json'
-              cat probe_out/gpu_probe.json
-              echo
-              echo '```'
-            else
-              echo "_no gpu_probe.json returned — kernel log below tells why._"
-            fi
-            for f in probe_out/*.log; do
-              if [ -f "$f" ]; then
-                echo
-                echo "#### $f"
-                echo '```'
-                tail -c 4000 "$f" || true
-                echo '```'
-              fi
-            done
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload probe artifacts (backup)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kaggle-probe-${{ github.run_id }}
-          path: probe_out/
-          if-no-files-found: warn
+            echo "no username (credentials step failed earlier) — 
