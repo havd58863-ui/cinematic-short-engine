@@ -113,7 +113,7 @@ jobs:
           PACKAGES = [
               "diffusers==0.42.0", "transformers==5.20.2", "accelerate==1.15.0",
               "imageio==2.38.1", "imageio-ffmpeg==0.6.0", "sentencepiece==0.2.2",
-              "protobuf==7.36.2", "safetensors==0.8.0",
+              "protobuf==7.36.2", "safetensors==0.8.0", "ftfy==6.3.1",
           ]
           started = time.time()
           status = {
