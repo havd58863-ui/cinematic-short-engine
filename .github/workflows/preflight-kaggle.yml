@@ -26,7 +26,7 @@ jobs:
           echo "$RUNNER_TEMP/kaggle-venv/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/kaggle-venv/bin/kaggle" --version
 
-      - name: Resolve Kaggle credentials (shape-forgiving, self-diagnosing)
+      - name: Resolve Kaggle credentials v5 (generic recovery + shape metadata)
         env:
           KAGGLE_JSON: ${{ secrets.KAGGLE_JSON }}
           KAGGLE_USERNAME_IN: ${{ secrets.KAGGLE_USERNAME }}
@@ -77,25 +77,77 @@ jobs:
               key_in = assignments["KAGGLE_KEY"]
               sensitive_values.append(key_in)
 
+          # Generic recovery for credentials copied with labels, Windows or
+          # PowerShell wrappers, line breaks, or spaces introduced by a phone
+          # clipboard. Only token-like substrings become candidates; their
+          # values are never printed.
+          TOKEN_CHARS = r"[A-Za-z0-9._~+\-/=]"
+          TOKEN_LIKE_RE = re.compile(TOKEN_CHARS + r"{16,}")
+          KNOWN_LABELS = {
+              "KAGGLE_API_TOKEN", "KAGGLE_USERNAME", "KAGGLE_KEY", "KAGGLE_TOKEN",
+              "AUTHORIZATION", "ACCESS_TOKEN", "API_TOKEN",
+          }
+          compact_raw = re.sub(r"\s+", "", raw)
+
+          def token_like_values(text):
+              values = []
+              for value in TOKEN_LIKE_RE.findall(text or ""):
+                  value = value.strip("._~+-/=")
+                  if len(value) < 16 or value.upper() in KNOWN_LABELS:
+                      continue
+                  has_letter = any(ch.isalpha() for ch in value)
+                  has_digit = any(ch.isdigit() for ch in value)
+                  has_symbol = any(ch in "._~+-/=" for ch in value)
+                  if not has_digit and not (has_symbol and len(value) >= 24):
+                      continue
+                  if not has_letter and len(value) < 32:
+                      continue
+                  add_unique(values, value)
+              return sorted(values, key=len, reverse=True)
+
+          generic_values = []
+          for text in (raw, compact_raw):
+              for value in token_like_values(text):
+                  add_unique(generic_values, value)
+          for match in re.finditer(r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([^\s#;]+)", raw):
+              variable_name = match.group(1).upper()
+              assigned_value = clean_value(match.group(2))
+              if ("TOKEN" in variable_name or "KEY" in variable_name) and len(assigned_value) >= 16:
+                  add_unique(generic_values, assigned_value)
+
           token_candidates = []
-          for token in re.findall(r"KGAT_[A-Za-z0-9._~+\-/=]+", raw):
-              add_unique(token_candidates, token)
+          for text in (raw, compact_raw):
+              for token in re.findall(r"KGAT_[A-Za-z0-9._~+\-/=]+", text):
+                  add_unique(token_candidates, token)
           for assignment_name in ("KAGGLE_API_TOKEN", "KAGGLE_TOKEN"):
               if assignments.get(assignment_name):
                   add_unique(token_candidates, assignments[assignment_name])
           if "=" in raw and "\n" not in raw and not raw.startswith("{"):
               add_unique(token_candidates, raw.split("=", 1)[1])
+          for value in generic_values:
+              add_unique(token_candidates, value)
           if raw and not raw.startswith("{") and "=" not in raw and not any(ch.isspace() for ch in raw):
               add_unique(token_candidates, raw)
 
           def json_field(field_name):
-              match = re.search(r'"' + re.escape(field_name) + r'"\s*:\s*"([^"]*)"', raw)
-              return match.group(1).strip() if match else ""
+              match = re.search(
+                  r"(?i)[\"']?" + re.escape(field_name) +
+                  r"[\"']?\s*[:=]\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s,;}\]]+))",
+                  raw,
+              )
+              if not match:
+                  return ""
+              return next((group.strip() for group in match.groups() if group is not None), "")
 
           partial_user = json_field("username")
           partial_key = json_field("key")
+          partial_token = (json_field("api_token") or json_field("access_token")
+                           or json_field("token"))
           if partial_key:
               sensitive_values.append(partial_key)
+          if partial_token:
+              sensitive_values.append(partial_token)
+              add_unique(token_candidates, partial_token)
 
           def summary(msg):
               sp = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -136,24 +188,35 @@ jobs:
           elif partial_user and partial_key:
               candidates.append(("recovered username/key fields",
                                  {"username": partial_user, "key": partial_key}, None))
-          if raw.count(":") == 1 and not raw.startswith("{"):
-              pair_user, pair_key = (part.strip() for part in raw.split(":", 1))
-              if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{1,63}", pair_user) and len(pair_key) >= 16:
+          PAIR_LABELS = {
+              "username", "key", "token", "api", "access", "authorization",
+              "bearer", "http", "https",
+          }
+          for match in re.finditer(
+              r"([A-Za-z0-9][A-Za-z0-9._-]{1,63})\s*:\s*([A-Za-z0-9][A-Za-z0-9._~+\-/=]{15,})",
+              raw,
+          ):
+              pair_user, pair_key = match.group(1), match.group(2).strip("._~+-/=")
+              if pair_user.lower() not in PAIR_LABELS and len(pair_key) >= 16:
                   sensitive_values.append(pair_key)
-                  candidates.append(("username:key pair",
+                  candidates.append(("recovered username:key pair",
                                      {"username": pair_user, "key": pair_key}, None))
           if partial_key and not partial_user:
               add_unique(token_candidates, partial_key)
           if key_in and partial_user and not user_in:
               candidates.append(("key secret + recovered username",
                                  {"username": partial_user, "key": key_in}, None))
+          legacy_users = []
+          for possible_user in (user_in, partial_user):
+              if possible_user and possible_user not in legacy_users:
+                  legacy_users.append(possible_user)
           for token in token_candidates:
-              if user_in and not token.startswith("KGAT_"):
-                  candidates.append(("extracted value as legacy key + username secret",
-                                     {"username": user_in, "key": token}, None))
               label = ("extracted Kaggle API token" if token != raw
                        else "pasted value as Kaggle API token")
               candidates.append((label, None, token))
+              for legacy_user in legacy_users:
+                  candidates.append(("extracted value as legacy key + recovered username",
+                                     {"username": legacy_user, "key": token}, None))
 
           unique_candidates = []
           seen_candidates = set()
@@ -165,15 +228,57 @@ jobs:
               if signature not in seen_candidates:
                   seen_candidates.add(signature)
                   unique_candidates.append(candidate)
-          candidates = unique_candidates
+          candidates = unique_candidates[:20]
+
+          if not raw:
+              start_kind = "empty"
+          elif raw[0] == "{":
+              start_kind = "brace"
+          elif raw[0] in ("\"", "'"):
+              start_kind = "quote"
+          elif raw[0].isalpha():
+              start_kind = "letter"
+          elif raw[0].isdigit():
+              start_kind = "digit"
+          else:
+              start_kind = "symbol"
+          shape_facts = {
+              "kaggle_json_secret_present": bool(raw),
+              "kaggle_json_length": len(raw),
+              "resolved_username_input_present": bool(user_in),
+              "resolved_username_input_length": len(user_in),
+              "resolved_key_input_present": bool(key_in),
+              "resolved_key_input_length": len(key_in),
+              "line_count": (raw.count("\n") + 1 if raw else 0),
+              "has_whitespace": any(ch.isspace() for ch in raw),
+              "has_equals": "=" in raw,
+              "colon_count": raw.count(":"),
+              "starts_with": start_kind,
+              "contains_kgat_label": "KGAT_" in raw,
+              "contains_token_label": bool(re.search(
+                  r"(?i)KAGGLE_API_TOKEN|api[_ -]?token|access[_ -]?token", raw)),
+              "compact_length_without_whitespace": len(compact_raw),
+              "generic_token_like_lengths": sorted((len(v) for v in generic_values), reverse=True)[:8],
+              "token_candidate_lengths": [len(v) for v in token_candidates[:8]],
+              "recovered_username_field_present": bool(partial_user),
+              "recovered_key_field_present": bool(partial_key),
+              "recovered_token_field_present": bool(partial_token),
+              "candidate_count": len(candidates),
+              "candidate_kinds": [candidate[0] for candidate in candidates],
+          }
+          shape_json = json.dumps(shape_facts, indent=2, sort_keys=True)
+          print("credential shape metadata (no secret values):", shape_json)
+          summary("Credential shape metadata (no secret values):\n\n```json\n"
+                  + shape_json + "\n```")
 
           rc, ver = cli(["--version"], base_env)
           print("kaggle CLI:", ver.splitlines()[0] if ver else f"rc={rc}")
           if not candidates:
               msg = ("### Kaggle preflight — credential diagnosis\n\n"
-                     "No usable credential material found. Need ONE of: full kaggle.json "
-                     "in secret KAGGLE_JSON, or secrets KAGGLE_USERNAME + KAGGLE_KEY, "
-                     "or a Kaggle API token in KAGGLE_JSON plus KAGGLE_USERNAME.")
+                     "The stored secret contained no credential candidate at all: no "
+                     "username/key pair and no token-like substring of 16+ characters. "
+                     "Use the shape metadata above to identify the stored value's form; "
+                     "no secret value was printed.")
               summary(msg)
               print("::error::" + msg.replace("\n", " "))
               sys.exit(1)
