@@ -1,0 +1,299 @@
+name: Gate — Voice (Listening)
+
+# Voice LISTENING gate (NOT production): two CPU-viable, license-clean TTS
+# candidates read the SAME three test lines so the owner can judge by ear:
+#   * Kokoro 0.9.4 (hexgrad/Kokoro-82M, Apache-2.0) voices am_michael (US)
+#     and bm_george (UK)
+#   * OmniVoice 0.2.1 (k2-fsa/OmniVoice; VoiceStudio's default engine)
+#     voice-design mode: "male, low pitch, american/british accent"
+# Engines run in ISOLATED venvs on the GitHub CPU runner (no Kaggle GPU
+# needed; TTS models are small). Automation only checks TECHNICAL validity
+# (decodable 24 kHz PCM WAV, sane duration, loudness, no clipping, not
+# silent). It can NOT choose a voice: accent authenticity, naturalness,
+# pacing and number reading are judged by the owner listening to the
+# artifact. Recorded deferral: Chatterbox is NOT in this round (13.87 GB
+# model repo + strict torch==2.6.0 pin make a first CPU run fragile); it
+# joins a second round only if neither candidate passes listening.
+# Recorded caveat: OmniVoice HF weights carry no license in the model
+# card (repo is Apache-2.0) — must be confirmed before any production
+# lock. VoiceStudio itself (AGPL desktop app) is NOT vendored; only its
+# proven engines are used directly under their own licenses.
+# Manual dispatch only.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      TOKENIZERS_PARALLELISM: "false"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12 (kokoro 0.9.4 requires Python <3.13)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install espeak-ng (English G2P fallback for Kokoro/misaki)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq espeak-ng
+          espeak-ng --version
+
+      - name: Install Kokoro in an isolated venv (CPU torch)
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/venv-kokoro"
+          "$RUNNER_TEMP/venv-kokoro/bin/python" -m pip install --disable-pip-version-check -q \
+            "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cpu
+          "$RUNNER_TEMP/venv-kokoro/bin/python" -m pip install --disable-pip-version-check -q \
+            "kokoro==0.9.4" "soundfile==0.14.0"
+          "$RUNNER_TEMP/venv-kokoro/bin/python" -c "import kokoro, torch; print('kokoro ok, torch', torch.__version__)"
+          df -h / | tail -1
+
+      - name: Generate Kokoro gate clips (2 voices x 3 lines)
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/gen_kokoro.py" << 'PY'
+          import json, os, time, traceback
+          OUT = "voice_out"
+          os.makedirs(OUT, exist_ok=True)
+          LINES = [
+              ("L1_hook", "Nobody believed the old lighthouse keeper, until the night the sea went completely silent."),
+              ("L2_narration", "For thirty years, he climbed those iron stairs alone, counting every step out loud so the darkness would not answer him."),
+              ("L3_numbers", "In 1962, divers found 1,400 silver coins resting exactly thirty-seven meters below the wreck."),
+          ]
+          VOICES = [("am_michael", "a"), ("bm_george", "b")]  # US male, UK male
+          result = {"engine": "kokoro", "package": "kokoro==0.9.4",
+                    "model": "hexgrad/Kokoro-82M", "status": "running", "clips": []}
+          t0 = time.time()
+          try:
+              import soundfile as sf
+              import torch
+              from kokoro import KPipeline
+              pipes = {}
+              for voice, lang in VOICES:
+                  if lang not in pipes:
+                      pipes[lang] = KPipeline(lang_code=lang, device="cpu")
+                  pipe = pipes[lang]
+                  for line_id, text in LINES:
+                      c0 = time.time()
+                      parts = []
+                      for res in pipe(text, voice=voice, speed=1):
+                          if res.audio is not None:
+                              parts.append(res.audio)
+                      if not parts:
+                          raise RuntimeError(f"no audio produced for {voice}/{line_id}")
+                      wav = torch.cat(parts).numpy()
+                      path = os.path.join(OUT, f"kokoro_{voice}_{line_id}.wav")
+                      sf.write(path, wav, 24000, subtype="PCM_16")
+                      rec = {"file": os.path.basename(path), "voice": voice,
+                             "line": line_id,
+                             "audio_seconds": round(len(wav) / 24000, 3),
+                             "wall_seconds": round(time.time() - c0, 1)}
+                      result["clips"].append(rec)
+                      print("clip ok:", rec, flush=True)
+              result["status"] = "success"
+          except Exception as exc:  # named and preserved, never hidden
+              result["status"] = "failed"
+              result["error"] = f"{type(exc).__name__}: {exc}"
+              result["traceback_tail"] = traceback.format_exc()[-4000:]
+          result["elapsed_seconds"] = round(time.time() - t0, 1)
+          with open(os.path.join(OUT, "kokoro_result.json"), "w") as f:
+              json.dump(result, f, indent=2)
+          print(json.dumps(result, indent=2))
+          if result["status"] != "success":
+              raise SystemExit(1)
+          PY
+          "$RUNNER_TEMP/venv-kokoro/bin/python" "$RUNNER_TEMP/gen_kokoro.py"
+
+      - name: Install OmniVoice in an isolated venv (CPU torch)
+        if: always()
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/venv-omnivoice"
+          "$RUNNER_TEMP/venv-omnivoice/bin/python" -m pip install --disable-pip-version-check -q \
+            "torch==2.8.0" "torchaudio==2.8.0" --index-url https://download.pytorch.org/whl/cpu
+          "$RUNNER_TEMP/venv-omnivoice/bin/python" -m pip install --disable-pip-version-check -q \
+            "omnivoice==0.2.1" "soundfile==0.14.0"
+          "$RUNNER_TEMP/venv-omnivoice/bin/python" -c "import omnivoice, torch; print('omnivoice ok, torch', torch.__version__)"
+          df -h / | tail -1
+
+      - name: Generate OmniVoice gate clips (2 designed voices x 3 lines)
+        if: always()
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/gen_omnivoice.py" << 'PY'
+          import json, os, time, traceback
+          OUT = "voice_out"
+          os.makedirs(OUT, exist_ok=True)
+          LINES = [
+              ("L1_hook", "Nobody believed the old lighthouse keeper, until the night the sea went completely silent."),
+              ("L2_narration", "For thirty years, he climbed those iron stairs alone, counting every step out loud so the darkness would not answer him."),
+              ("L3_numbers", "In 1962, divers found 1,400 silver coins resting exactly thirty-seven meters below the wreck."),
+          ]
+          DESIGNS = [
+              ("us_male_low", "male, low pitch, american accent"),
+              ("uk_male_low", "male, low pitch, british accent"),
+          ]
+          result = {"engine": "omnivoice", "package": "omnivoice==0.2.1",
+                    "model": "k2-fsa/OmniVoice", "mode": "voice_design",
+                    "status": "running", "clips": []}
+          t0 = time.time()
+          try:
+              import soundfile as sf
+              import torch
+              from omnivoice import OmniVoice
+              model = OmniVoice.from_pretrained(
+                  "k2-fsa/OmniVoice", device_map="cpu", dtype=torch.float32)
+              for design_id, instruct in DESIGNS:
+                  for line_id, text in LINES:
+                      c0 = time.time()
+                      audio = model.generate(text=text, instruct=instruct)
+                      if not audio or len(audio[0]) == 0:
+                          raise RuntimeError(f"no audio produced for {design_id}/{line_id}")
+                      path = os.path.join(OUT, f"omnivoice_{design_id}_{line_id}.wav")
+                      sf.write(path, audio[0], 24000, subtype="PCM_16")
+                      rec = {"file": os.path.basename(path), "voice": design_id,
+                             "instruct": instruct, "line": line_id,
+                             "audio_seconds": round(len(audio[0]) / 24000, 3),
+                             "wall_seconds": round(time.time() - c0, 1)}
+                      result["clips"].append(rec)
+                      print("clip ok:", rec, flush=True)
+              result["status"] = "success"
+          except Exception as exc:  # named and preserved, never hidden
+              result["status"] = "failed"
+              result["error"] = f"{type(exc).__name__}: {exc}"
+              result["traceback_tail"] = traceback.format_exc()[-4000:]
+          result["elapsed_seconds"] = round(time.time() - t0, 1)
+          with open(os.path.join(OUT, "omnivoice_result.json"), "w") as f:
+              json.dump(result, f, indent=2)
+          print(json.dumps(result, indent=2))
+          if result["status"] != "success":
+              raise SystemExit(1)
+          PY
+          "$RUNNER_TEMP/venv-omnivoice/bin/python" "$RUNNER_TEMP/gen_omnivoice.py"
+
+      - name: Measure clips and apply technical criteria (listening verdict is human)
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p voice_out
+          ls -la voice_out || true
+          python3 - << 'PY'
+          import json, math, os, sys, wave
+          root = "voice_out"
+          EXPECTED = {
+              "kokoro": [f"kokoro_{v}_{l}.wav" for v in ("am_michael", "bm_george")
+                         for l in ("L1_hook", "L2_narration", "L3_numbers")],
+              "omnivoice": [f"omnivoice_{v}_{l}.wav" for v in ("us_male_low", "uk_male_low")
+                            for l in ("L1_hook", "L2_narration", "L3_numbers")],
+          }
+          def measure(path):
+              with wave.open(path, "rb") as w:
+                  n, ch, sw, sr = w.getnframes(), w.getnchannels(), w.getsampwidth(), w.getframerate()
+                  if sw != 2:
+                      return {"error": f"expected 16-bit PCM, got sampwidth={sw}"}
+                  raw = w.readframes(n)
+              total = len(raw) // 2
+              samples = [int.from_bytes(raw[i*2:(i+1)*2], "little", signed=True) / 32768.0
+                         for i in range(0, total, ch)]
+              if not samples:
+                  return {"error": "no samples"}
+              peak = max(abs(s) for s in samples)
+              rms = math.sqrt(sum(s*s for s in samples) / len(samples))
+              rms_db = 20 * math.log10(rms) if rms > 0 else -999.0
+              silence = sum(1 for s in samples if abs(s) < 0.01) / len(samples)
+              clipped = sum(1 for s in samples if abs(s) >= 0.999) / len(samples)
+              return {"sample_rate": sr, "channels": ch,
+                      "duration_seconds": round(n / sr, 3),
+                      "peak": round(peak, 4), "rms_db": round(rms_db, 2),
+                      "silence_fraction": round(silence, 4),
+                      "clipped_fraction": round(clipped, 5)}
+          report = {"engines": {}}
+          summary = ["### Voice listening gate — technical measurements",
+                     "",
+                     "Automation checked ONLY: decodable 24 kHz PCM, 1-25 s per clip,",
+                     "RMS >= -45 dB, clipped <= 0.5%, silence <= 85%. It can NOT choose",
+                     "a voice. Owner listening criteria (judge every clip): 1) US/UK",
+                     "accent sounds authentic; 2) natural, not robotic; 3) hook line",
+                     " pacing/stress pulls attention; 4) numbers read correctly",
+                     "(1962, 1,400, thirty-seven); 5) no mispronunciations/artifacts.",
+                     ""]
+          any_engine_pass = False
+          for engine, files in EXPECTED.items():
+              res_path = os.path.join(root, f"{engine}_result.json")
+              res = {}
+              if os.path.isfile(res_path):
+                  try:
+                      res = json.load(open(res_path))
+                  except Exception as exc:
+                      res = {"status": "unreadable", "error": f"{type(exc).__name__}: {exc}"}
+              problems = []
+              if res.get("status") != "success":
+                  problems.append(f"generation status {res.get('status')!r}: {res.get('error')}")
+              clips = {}
+              for name in files:
+                  path = os.path.join(root, name)
+                  if not os.path.isfile(path):
+                      problems.append(f"missing {name}"); continue
+                  try:
+                      m = measure(path)
+                  except Exception as exc:
+                      problems.append(f"{name}: {type(exc).__name__}: {exc}"); continue
+                  clips[name] = m
+                  if "error" in m:
+                      problems.append(f"{name}: {m['error']}"); continue
+                  if m["sample_rate"] != 24000:
+                      problems.append(f"{name}: sample rate {m['sample_rate']} != 24000")
+                  if not (1.0 <= m["duration_seconds"] <= 25.0):
+                      problems.append(f"{name}: duration {m['duration_seconds']}s out of 1-25s")
+                  if m["rms_db"] < -45:
+                      problems.append(f"{name}: too quiet (RMS {m['rms_db']} dB)")
+                  if m["clipped_fraction"] > 0.005:
+                      problems.append(f"{name}: clipping {m['clipped_fraction']}")
+                  if m["silence_fraction"] > 0.85:
+                      problems.append(f"{name}: mostly silence ({m['silence_fraction']})")
+              passed = not problems and len(clips) == len(files)
+              any_engine_pass = any_engine_pass or passed
+              report["engines"][engine] = {"technical_pass": passed,
+                                           "problems": problems, "clips": clips,
+                                           "generation": res}
+              summary.append(f"**{engine}**: technical {'PASS' if passed else 'FAIL'}")
+              for name, m in clips.items():
+                  summary.append(f"- `{name}` — {m.get('duration_seconds')}s, RMS {m.get('rms_db')} dB, peak {m.get('peak')}")
+              for p in problems:
+                  summary.append(f"- problem: {p}")
+              summary.append("")
+          with open(os.path.join(root, "voice_gate.json"), "w") as f:
+              json.dump(report, f, indent=2)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write("\n".join(summary) + "\n")
+          for engine, info in report["engines"].items():
+              print(f"{engine}: technical {'PASS' if info['technical_pass'] else 'FAIL'}"
+                    + ("" if not info["problems"] else " — " + "; ".join(info["problems"])))
+          if not any_engine_pass:
+              print("::error::VOICE GATE: no engine produced a complete, technically valid clip set")
+              sys.exit(1)
+          print("VOICE GATE TECHNICAL PASS for >=1 engine. LISTENING VERDICT PENDING: "
+                "the owner must listen to the artifact WAVs and choose. "
+                "No voice is approved by this automation.")
+          PY
+
+      - name: Upload voice gate artifacts (WAVs + metrics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-gate-${{ github.run_id }}
+          path: voice_out/
+          if-no-files-found: warn
