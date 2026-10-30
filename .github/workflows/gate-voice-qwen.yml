@@ -1,0 +1,506 @@
+name: Gate — Voice Qwen (Kaggle)
+
+# Voice gate ROUND 2 (NOT production): Qwen3-TTS expressive candidates on a
+# Kaggle T4, judged against the SAME three test lines as round 1 (plus a
+# number-normalization variant and two emotion variants):
+#   * Qwen3-TTS-12Hz-1.7B-VoiceDesign (Apache-2.0, pinned revision):
+#     one fixed US low-baritone narrator identity instruct; lines L1/L2/L3,
+#     L3 with "1,400" spelled out, L1 with an ominous instruct and L2 with a
+#     restrained-sorrow instruct (emotion must not break identity or words).
+#   * Qwen3-TTS-12Hz-1.7B-CustomVoice (Apache-2.0, pinned revision):
+#     fixed speakers Ryan and Aiden, same L1/L2/L3.
+# Every raw clip is then polished with the locked FFmpeg chain
+# (highpass 70 Hz -> gentle compressor -> loudnorm I=-16/TP=-1.0) into a
+# *_proc.wav twin. Automation checks TECHNICAL validity only (decodable
+# 24 kHz PCM, duration, loudness, no clipping, polish peak/duration sanity).
+# Word accuracy (Whisper word-diff), speaker-identity stability, pace and
+# prosody are measured afterwards by the assistant from the artifact, and
+# the final expressive-layer lock additionally needs the pre-registered
+# bars: zero real word errors on neutral lines, F0 spread <=6% and
+# spectral-centroid spread <=15% across a voice's neutral takes, emotion
+# takes with zero word errors. Deviations forced by hardware, recorded:
+# attn_implementation="eager" (FlashAttention-2 needs sm80+; T4 is sm75,
+# eager is the vendor-documented fallback) and FP16 instead of the BF16
+# used in vendor examples (T4 has no native BF16).
+# Reuses the proven Kaggle credential resolver from preflight-kaggle.yml.
+# Manual dispatch only.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out repository (for the proven credential resolver)
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI 2.2.5 in an isolated venv
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/kaggle-venv"
+          "$RUNNER_TEMP/kaggle-venv/bin/python" -m pip install --disable-pip-version-check -q "kaggle==2.2.5"
+          echo "$RUNNER_TEMP/kaggle-venv/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/kaggle-venv/bin/kaggle" --version
+
+      - name: Resolve Kaggle credentials (reuse proven v7 resolver)
+        env:
+          KAGGLE_JSON: ${{ secrets.KAGGLE_JSON }}
+          KAGGLE_USERNAME_IN: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY_IN: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path(".github/workflows/preflight-kaggle.yml").read_text().splitlines()
+          start = next(i for i, line in enumerate(lines) if "python3 - << 'PY'" in line)
+          indent = len(lines[start]) - len(lines[start].lstrip(" "))
+          body = []
+          for line in lines[start + 1:]:
+              if line.strip() == "PY" and len(line) - len(line.lstrip(" ")) == indent:
+                  break
+              body.append(line[indent:] if line.startswith(" " * indent) else line)
+          if not body or "credentials OK via" not in "\n".join(body):
+              raise SystemExit("could not extract the proven Kaggle credential resolver")
+          Path("/tmp/kaggle_resolver.py").write_text("\n".join(body) + "\n")
+          print(f"extracted proven resolver: {len(body)} lines")
+          PY
+          python3 /tmp/kaggle_resolver.py
+
+      - name: Build Qwen voice gate kernel
+        run: |
+          set -euo pipefail
+          mkdir -p qwen_gate
+          cat > qwen_gate/kernel-metadata.json << JSON
+          {
+            "id": "$KAGGLE_USERNAME/cine-engine-qwen-voice-gate",
+            "title": "cine-engine-qwen-voice-gate",
+            "code_file": "qwen_gate.py",
+            "language": "python",
+            "kernel_type": "script",
+            "is_private": true,
+            "enable_gpu": true,
+            "enable_tpu": false,
+            "enable_internet": true,
+            "machine_shape": "NvidiaTeslaT4",
+            "dataset_sources": [],
+            "kernel_sources": [],
+            "model_sources": []
+          }
+          JSON
+          cat > qwen_gate/qwen_gate.py << 'PY'
+          import gc, json, os, shutil, subprocess, sys, time, traceback
+          os.environ.setdefault("HF_HOME", "/kaggle/tmp/hf-cache")
+          os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+          os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+          os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+          WORK = "/kaggle/working"
+          STATUS_PATH = os.path.join(WORK, "qwen_gate.json")
+          VD_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
+          VD_REVISION = "5ecdb67327fd37bb2e042aab12ff7391903235d3"
+          CV_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+          CV_REVISION = "0c0e3051f131929182e2c023b9537f8b1c68adfe"
+          SEED = 20261027
+          LANGUAGE = "English"
+          IDENTITY = ("Adult male narrator, low baritone, natural American English "
+                      "accent, warm chest resonance, clear consonants. "
+                      "Keep the same vocal identity.")
+          INSTRUCTS = {
+              "neutral": IDENTITY,
+              "ominous": IDENTITY + " Low, controlled, ominous tone, deliberate pauses, gradually rising tension.",
+              "sorrow": IDENTITY + " Restrained sorrow, slower pacing, subtle vocal weight; do not sound theatrical.",
+          }
+          LINES = {
+              "L1_hook": "Nobody believed the old lighthouse keeper, until the night the sea went completely silent.",
+              "L2_narration": "For thirty years, he climbed those iron stairs alone, counting every step out loud so the darkness would not answer him.",
+              "L3_numbers": "In 1962, divers found 1,400 silver coins resting exactly thirty-seven meters below the wreck.",
+              "L3_numbers_norm": "In 1962, divers found one thousand four hundred silver coins resting exactly thirty-seven meters below the wreck.",
+          }
+          VD_TASKS = [
+              ("qwen_vd_us_L1_hook", "L1_hook", "neutral"),
+              ("qwen_vd_us_L2_narration", "L2_narration", "neutral"),
+              ("qwen_vd_us_L3_numbers", "L3_numbers", "neutral"),
+              ("qwen_vd_us_L3_numbers_norm", "L3_numbers_norm", "neutral"),
+              ("qwen_vd_us_L1_ominous", "L1_hook", "ominous"),
+              ("qwen_vd_us_L2_sorrow", "L2_narration", "sorrow"),
+          ]
+          CV_SPEAKERS = [("ryan", "Ryan"), ("aiden", "Aiden")]
+          CV_LINES = ["L1_hook", "L2_narration", "L3_numbers"]
+          FFMPEG_CHAIN = ("highpass=f=70,acompressor=threshold=-18dB:ratio=3:"
+                          "attack=10:release=200,loudnorm=I=-16:TP=-1.0:LRA=11")
+          PACKAGES = ["qwen-tts==0.1.1", "soundfile==0.14.0", "imageio-ffmpeg==0.6.0"]
+          started = time.time()
+          status = {
+              "status": "running", "phase": "start",
+              "models": {"voicedesign": {"id": VD_MODEL, "revision": VD_REVISION},
+                         "customvoice": {"id": CV_MODEL, "revision": CV_REVISION}},
+              "settings": {"dtype": "float16", "attn_implementation": "eager",
+                           "device_map": "cuda:0", "language": LANGUAGE, "seed": SEED},
+              "instructs": INSTRUCTS, "lines": LINES,
+              "deviations": [
+                  "attn_implementation=eager (FlashAttention-2 needs sm80+; T4 is sm75; eager is the vendor-documented fallback)",
+                  "FP16 instead of vendor-example BF16 (T4 has no native BF16)",
+                  "L3 also generated with 1,400 spelled out to test deterministic number normalization",
+              ],
+              "ffmpeg_chain": FFMPEG_CHAIN,
+              "phases_seconds": {}, "generation": {}, "polish": {},
+          }
+
+          def save_status():
+              status["elapsed_seconds"] = round(time.time() - started, 3)
+              with open(STATUS_PATH, "w") as f:
+                  json.dump(status, f, indent=2)
+
+          def phase(name, fn):
+              status["phase"] = name
+              save_status()
+              print(f"== PHASE: {name} ==", flush=True)
+              t0 = time.time()
+              result = fn()
+              status["phases_seconds"][name] = round(time.time() - t0, 3)
+              save_status()
+              return result
+
+          raw_files = []
+          try:
+              os.makedirs("/kaggle/tmp/hf-cache", exist_ok=True)
+              os.makedirs(WORK, exist_ok=True)
+              status["disk"] = {}
+              for label, path in (("working", WORK), ("scratch", "/kaggle/tmp"), ("root", "/")):
+                  try:
+                      u = shutil.disk_usage(path)
+                      status["disk"][label] = {"total_gb": round(u.total / 1e9, 2),
+                                               "free_gb": round(u.free / 1e9, 2)}
+                  except Exception as exc:
+                      status["disk"][label] = {"error": f"{type(exc).__name__}: {exc}"}
+              save_status()
+
+              def install_packages():
+                  subprocess.check_call([
+                      sys.executable, "-m", "pip", "install", "-q", "--no-cache-dir", *PACKAGES
+                  ])
+                  from importlib.metadata import version
+                  status["installed_versions"] = {}
+                  for pkg in ("torch", "torchaudio", "transformers", "accelerate", "qwen-tts", "soundfile"):
+                      try:
+                          status["installed_versions"][pkg] = version(pkg)
+                      except Exception as exc:
+                          status["installed_versions"][pkg] = f"missing ({type(exc).__name__})"
+                  save_status()
+              phase("install_packages", install_packages)
+
+              import soundfile as sf
+              import torch
+
+              def check_gpu():
+                  status["python"] = sys.version
+                  status["torch"] = torch.__version__
+                  status["cuda_available"] = torch.cuda.is_available()
+                  if not torch.cuda.is_available() or torch.cuda.device_count() < 1:
+                      raise RuntimeError("CUDA GPU was not granted to this Kaggle kernel")
+                  status["devices"] = [torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())]
+                  status["vram_gb_device0"] = round(
+                      torch.cuda.get_device_properties(0).total_memory / 1e9, 2)
+                  smi = shutil.which("nvidia-smi") or "/opt/bin/nvidia-smi"
+                  if os.path.isfile(smi):
+                      r = subprocess.run([smi], capture_output=True, text=True)
+                      print(r.stdout or r.stderr)
+                  save_status()
+              phase("check_gpu", check_gpu)
+
+              from qwen_tts import Qwen3TTSModel
+
+              def free_gpu(model):
+                  del model
+                  gc.collect()
+                  torch.cuda.empty_cache()
+
+              def save_clip(group, stem, line_id, wavs, sr, wall, extra=None):
+                  if not wavs or len(wavs[0]) == 0:
+                      raise RuntimeError(f"no audio produced for {stem}")
+                  path = os.path.join(WORK, f"{stem}.wav")
+                  sf.write(path, wavs[0], sr, subtype="PCM_16")
+                  rec = {"file": os.path.basename(path), "line": line_id,
+                         "sample_rate": int(sr),
+                         "audio_seconds": round(len(wavs[0]) / sr, 3),
+                         "wall_seconds": round(wall, 1)}
+                  if extra:
+                      rec.update(extra)
+                  status["generation"][group]["clips"].append(rec)
+                  raw_files.append(path)
+                  save_status()
+                  print("clip ok:", rec, flush=True)
+
+              def run_voicedesign():
+                  group = "qwen_vd_us"
+                  status["generation"][group] = {"status": "running", "clips": []}
+                  save_status()
+                  try:
+                      torch.manual_seed(SEED)
+                      torch.cuda.manual_seed_all(SEED)
+                      torch.cuda.reset_peak_memory_stats(0)
+                      model = Qwen3TTSModel.from_pretrained(
+                          VD_MODEL, revision=VD_REVISION, device_map="cuda:0",
+                          dtype=torch.float16, attn_implementation="eager")
+                      for stem, line_id, ins_key in VD_TASKS:
+                          c0 = time.time()
+                          wavs, sr = model.generate_voice_design(
+                              text=LINES[line_id], language=LANGUAGE,
+                              instruct=INSTRUCTS[ins_key])
+                          save_clip(group, stem, line_id, wavs, sr, time.time() - c0,
+                                    {"instruct_key": ins_key})
+                      status["generation"][group]["peak_vram_allocated_gb"] = round(
+                          torch.cuda.max_memory_allocated(0) / 1e9, 3)
+                      status["generation"][group]["status"] = "success"
+                      free_gpu(model)
+                  except Exception as exc:  # named and preserved, never hidden
+                      status["generation"][group]["status"] = "failed"
+                      status["generation"][group]["error"] = f"{type(exc).__name__}: {exc}"
+                      status["generation"][group]["traceback_tail"] = traceback.format_exc()[-5000:]
+                      try:
+                          free_gpu(model)
+                      except Exception:
+                          pass
+                  save_status()
+              phase("generate_voicedesign", run_voicedesign)
+
+              def run_customvoice():
+                  group = "qwen_cv"
+                  status["generation"][group] = {"status": "running", "clips": []}
+                  save_status()
+                  try:
+                      torch.manual_seed(SEED)
+                      torch.cuda.manual_seed_all(SEED)
+                      torch.cuda.reset_peak_memory_stats(0)
+                      model = Qwen3TTSModel.from_pretrained(
+                          CV_MODEL, revision=CV_REVISION, device_map="cuda:0",
+                          dtype=torch.float16, attn_implementation="eager")
+                      try:
+                          status["generation"][group]["supported_speakers"] = (
+                              model.get_supported_speakers())
+                      except Exception as exc:
+                          status["generation"][group]["supported_speakers_error"] = (
+                              f"{type(exc).__name__}: {exc}")
+                      save_status()
+                      for spk_id, spk_name in CV_SPEAKERS:
+                          for line_id in CV_LINES:
+                              c0 = time.time()
+                              wavs, sr = model.generate_custom_voice(
+                                  text=LINES[line_id], language=LANGUAGE,
+                                  speaker=spk_name)
+                              save_clip(group, f"qwen_cv_{spk_id}_{line_id}", line_id,
+                                        wavs, sr, time.time() - c0, {"speaker": spk_name})
+                      status["generation"][group]["peak_vram_allocated_gb"] = round(
+                          torch.cuda.max_memory_allocated(0) / 1e9, 3)
+                      status["generation"][group]["status"] = "success"
+                      free_gpu(model)
+                  except Exception as exc:  # named and preserved, never hidden
+                      status["generation"][group]["status"] = "failed"
+                      status["generation"][group]["error"] = f"{type(exc).__name__}: {exc}"
+                      status["generation"][group]["traceback_tail"] = traceback.format_exc()[-5000:]
+                      try:
+                          free_gpu(model)
+                      except Exception:
+                          pass
+                  save_status()
+              phase("generate_customvoice", run_customvoice)
+
+              def polish_all():
+                  import imageio_ffmpeg
+                  ff = imageio_ffmpeg.get_ffmpeg_exe()
+                  status["polish"] = {"ffmpeg": ff, "results": {}}
+                  for src in list(raw_files):
+                      dst = src.replace(".wav", "_proc.wav")
+                      r = subprocess.run(
+                          [ff, "-y", "-i", src, "-af", FFMPEG_CHAIN,
+                           "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", dst],
+                          capture_output=True, text=True)
+                      ok = r.returncode == 0 and os.path.isfile(dst)
+                      status["polish"]["results"][os.path.basename(dst)] = {
+                          "ok": ok,
+                          "error_tail": None if ok else (r.stderr or "")[-800:],
+                      }
+                      save_status()
+                      print("polish", os.path.basename(dst), "ok" if ok else "FAILED", flush=True)
+              phase("polish_ffmpeg", polish_all)
+
+              any_success = any(
+                  g.get("status") == "success" for g in status["generation"].values())
+              status["status"] = "success" if any_success else "failed"
+              status["phase"] = "complete"
+              save_status()
+              print("QWEN_GATE_JSON:", json.dumps(status, sort_keys=True)[:4000])
+              if not any_success:
+                  raise RuntimeError("both Qwen models failed; see generation errors")
+          except Exception as exc:  # named and preserved, never hidden
+              status["status"] = "failed"
+              status["error"] = f"{type(exc).__name__}: {exc}"
+              status["traceback_tail"] = traceback.format_exc()[-6000:]
+              save_status()
+              print("QWEN_GATE_FAILED:", status["error"], flush=True)
+              raise
+          PY
+          ls -la qwen_gate
+
+      - name: Push Qwen gate kernel and wait for completion
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p qwen_gate --accelerator NvidiaTeslaT4
+          kernel_state="timeout"
+          for i in $(seq 1 180); do
+            out=$(kaggle kernels status "$KAGGLE_USERNAME/cine-engine-qwen-voice-gate" 2>&1 || true)
+            echo "poll $i: $out"
+            low=$(printf '%s' "$out" | tr '[:upper:]' '[:lower:]')
+            case "$low" in
+              *complete*) kernel_state="complete"; echo "kernel complete"; break ;;
+              *error*|*cancel*) kernel_state="error"; break ;;
+            esac
+            sleep 60
+          done
+          if [ "$kernel_state" != "complete" ]; then
+            echo "::error::Qwen gate kernel did not complete successfully (state: $kernel_state) — read qwen_out logs in summary/artifact"
+            exit 1
+          fi
+
+      - name: Fetch gate output, verify technical criteria, and write summary
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p qwen_out
+          if [ -n "${KAGGLE_USERNAME:-}" ]; then
+            kaggle kernels output "$KAGGLE_USERNAME/cine-engine-qwen-voice-gate" -p qwen_out || true
+          else
+            echo "no username (credentials step failed earlier) — nothing to fetch"
+          fi
+          find qwen_out -maxdepth 2 -type f -printf '%p %s bytes\n' || true
+          {
+            echo "### Kaggle Qwen3-TTS voice gate round 2 (run ${{ github.run_id }})"
+            echo
+            echo "Pre-registered bars for the assistant's offline ASR/prosody analysis"
+            echo "(automation here checks technical validity only): zero real word"
+            echo "errors on neutral lines (incl. numbers), F0 spread <=6% and spectral"
+            echo "centroid spread <=15% across a voice's neutral takes, emotion takes"
+            echo "with zero word errors. Production baseline already locked: Kokoro"
+            echo "am_michael; Qwen must beat these bars to become the expressive layer."
+            echo
+            if [ -f qwen_out/qwen_gate.json ]; then
+              echo '```json'
+              cat qwen_out/qwen_gate.json
+              echo
+              echo '```'
+            else
+              echo "_no qwen_gate.json returned — kernel log below tells why._"
+            fi
+            for f in qwen_out/*.log; do
+              if [ -f "$f" ]; then
+                echo
+                echo "#### $f"
+                echo '```'
+                tail -c 6000 "$f" || true
+                echo '```'
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          python3 - << 'PY'
+          import json, math, os, sys, wave
+          root = "qwen_out"
+          js = os.path.join(root, "qwen_gate.json")
+          VD_FILES = ["qwen_vd_us_L1_hook.wav", "qwen_vd_us_L2_narration.wav",
+                      "qwen_vd_us_L3_numbers.wav", "qwen_vd_us_L3_numbers_norm.wav",
+                      "qwen_vd_us_L1_ominous.wav", "qwen_vd_us_L2_sorrow.wav"]
+          def cv_files(spk):
+              return [f"qwen_cv_{spk}_{l}.wav" for l in ("L1_hook", "L2_narration", "L3_numbers")]
+          GROUPS = {"qwen_vd_us": VD_FILES, "qwen_cv_ryan": cv_files("ryan"),
+                    "qwen_cv_aiden": cv_files("aiden")}
+          GEN_KEY = {"qwen_vd_us": "qwen_vd_us", "qwen_cv_ryan": "qwen_cv",
+                     "qwen_cv_aiden": "qwen_cv"}
+          info = {}
+          load_problems = []
+          if not os.path.isfile(js):
+              load_problems.append("qwen_gate.json was not returned")
+          else:
+              try:
+                  info = json.load(open(js))
+              except Exception as exc:  # named, never hidden
+                  load_problems.append(f"could not parse qwen_gate.json ({type(exc).__name__}: {exc})")
+          generation = info.get("generation", {}) if isinstance(info, dict) else {}
+          def measure(path):
+              with wave.open(path, "rb") as w:
+                  n, ch, sw, sr = w.getnframes(), w.getnchannels(), w.getsampwidth(), w.getframerate()
+                  if sw != 2:
+                      return {"error": f"expected 16-bit PCM, got sampwidth={sw}"}
+                  raw = w.readframes(n)
+              total = len(raw) // 2
+              samples = [int.from_bytes(raw[i*2:(i+1)*2], "little", signed=True) / 32768.0
+                         for i in range(0, total, ch)]
+              if not samples:
+                  return {"error": "no samples"}
+              peak = max(abs(s) for s in samples)
+              rms = math.sqrt(sum(s*s for s in samples) / len(samples))
+              return {"sample_rate": sr, "duration_seconds": round(n / sr, 3),
+                      "peak": round(peak, 4),
+                      "rms_db": round(20 * math.log10(rms), 2) if rms > 0 else -999.0,
+                      "silence_fraction": round(
+                          sum(1 for s in samples if abs(s) < 0.01) / len(samples), 4),
+                      "clipped_fraction": round(
+                          sum(1 for s in samples if abs(s) >= 0.999) / len(samples), 5)}
+          any_pass = False
+          for gname, files in GROUPS.items():
+              problems = list(load_problems)
+              gen = generation.get(GEN_KEY[gname], {})
+              if gen.get("status") != "success":
+                  problems.append(f"generation status {gen.get('status')!r}: {gen.get('error')}")
+              measured = 0
+              for name in files:
+                  for suffix, kind in (("", "raw"), ("_proc", "proc")):
+                      fname = name.replace(".wav", f"{suffix}.wav")
+                      path = os.path.join(root, fname)
+                      if not os.path.isfile(path):
+                          problems.append(f"missing {fname}"); continue
+                      try:
+                          m = measure(path)
+                      except Exception as exc:
+                          problems.append(f"{fname}: {type(exc).__name__}: {exc}"); continue
+                      if "error" in m:
+                          problems.append(f"{fname}: {m['error']}"); continue
+                      if m["sample_rate"] != 24000:
+                          problems.append(f"{fname}: sample rate {m['sample_rate']} != 24000")
+                      if kind == "raw":
+                          measured += 1
+                          if not (1.0 <= m["duration_seconds"] <= 25.0):
+                              problems.append(f"{fname}: duration {m['duration_seconds']}s out of 1-25s")
+                          if m["rms_db"] < -45:
+                              problems.append(f"{fname}: too quiet (RMS {m['rms_db']} dB)")
+                          if m["clipped_fraction"] > 0.005:
+                              problems.append(f"{fname}: clipping {m['clipped_fraction']}")
+                          if m["silence_fraction"] > 0.85:
+                              problems.append(f"{fname}: mostly silence ({m['silence_fraction']})")
+                      else:
+                          if m["peak"] > 0.95:
+                              problems.append(f"{fname}: polished peak {m['peak']} > 0.95 (loudnorm TP not held)")
+                          if m["rms_db"] < -22:
+                              problems.append(f"{fname}: polished too quiet (RMS {m['rms_db']} dB)")
+              passed = not problems and measured == len(files)
+              any_pass = any_pass or passed
+              print(f"{gname}: technical {'PASS' if passed else 'FAIL'}"
+                    + ("" if not problems else " — " + "; ".join(problems)))
+          if not any_pass:
+              print("::error::QWEN VOICE GATE TECHNICAL FAIL: no voice group produced a complete valid set")
+              sys.exit(1)
+          print("QWEN VOICE GATE TECHNICAL PASS for >=1 voice group. ASR/prosody "
+                "analysis + expressive-layer lock decision happen offline from the "
+                "artifact; automation approved no voice.")
+          PY
+
+      - name: Upload Qwen gate artifacts (WAVs + polished + metrics)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaggle-qwen-voice-gate-${{ github.run_id }}
+          path: qwen_out/
+          if-no-files-found: warn
