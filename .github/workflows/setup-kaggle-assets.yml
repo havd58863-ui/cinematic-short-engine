@@ -39,11 +39,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m venv "$RUNNER_TEMP/kaggle-venv"
-          "$RUNNER_TEMP/kaggle-venv/bin/python" -m pip install --disable-pip-version-check -q "kaggle==2.2.5"
+          # six pinned explicitly (ledger E-011): kaggle 2.2.5 imports six but its
+          # metadata omits it; it used to arrive via python-dateutil (dropped in 4.0.0).
+          "$RUNNER_TEMP/kaggle-venv/bin/python" -m pip install --disable-pip-version-check -q "kaggle==2.2.5" "six==1.17.0"
           echo "$RUNNER_TEMP/kaggle-venv/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/kaggle-venv/bin/kaggle" --version
+          "$RUNNER_TEMP/kaggle-venv/bin/kaggle" datasets files --help >/dev/null
           python3 -m venv "$RUNNER_TEMP/assets-venv"
           "$RUNNER_TEMP/assets-venv/bin/python" -m pip install --disable-pip-version-check -q "huggingface_hub==2.4.0"
+          "$RUNNER_TEMP/assets-venv/bin/python" -c "from huggingface_hub import hf_hub_download, snapshot_download; print('asset tooling imports OK')"
           echo "ASSETS_PY=$RUNNER_TEMP/assets-venv/bin/python" >> "$GITHUB_ENV"
 
       - name: Resolve Kaggle credentials (reuse proven v7 resolver)
