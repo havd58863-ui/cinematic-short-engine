@@ -1,0 +1,425 @@
+name: Setup — Kaggle Asset Shelves (one-time)
+
+# ONE-TIME asset mirroring (idempotent; safe to rerun). Copies the heavy model
+# weights into five PRIVATE Kaggle Datasets ("shelves") so every production
+# kernel starts warm from /kaggle/input instead of re-downloading ~30GB:
+#   cine-assets-sao       Stable Audio Open 1.0 (music/SFX; GATED -> HF_TOKEN)
+#   cine-assets-wan-unet  Wan2.2-TI2V-5B Q5_K_M GGUF + Wan2.2 VAE (scenes)
+#   cine-assets-umt5      umt5_xxl fp8 text encoder (Wan conditioning)
+#   cine-assets-sdxl      SDXL base 1.0 fp16 subset as one tar (reference frames)
+#   cine-assets-gemma     Ollama models dir for the LOCKED writer/director
+#                         gemma4:12b, stored flat with a layout map; the shelf
+#                         is only created if the pulled manifest still carries
+#                         the locked digest (drift = named stop, never silent).
+# Secrets policy: HF_TOKEN is used only inside this runner for the gated SAO
+# download; GEMINI_API_KEY is only CHECKED here (production voice happens in
+# Actions later) so its absence is a loud warning, not a setup blocker. No
+# secret is ever written into datasets, kernels, logs, or this repository.
+# Consumer contract for every future kernel: attach the needed shelves via
+# dataset_sources, DISCOVER each expected file by name under /kaggle/input
+# (mount prefixes vary), assert presence loudly, and never fall back to a
+# silent internet download or to Google Drive (ledger E-009/E-010).
+# Manual dispatch only.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - name: Check out repository (for the proven credential resolver)
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI 2.2.5 and asset tooling (isolated venvs)
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/kaggle-venv"
+          "$RUNNER_TEMP/kaggle-venv/bin/python" -m pip install --disable-pip-version-check -q "kaggle==2.2.5"
+          echo "$RUNNER_TEMP/kaggle-venv/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/kaggle-venv/bin/kaggle" --version
+          python3 -m venv "$RUNNER_TEMP/assets-venv"
+          "$RUNNER_TEMP/assets-venv/bin/python" -m pip install --disable-pip-version-check -q "huggingface_hub==2.4.0"
+          echo "ASSETS_PY=$RUNNER_TEMP/assets-venv/bin/python" >> "$GITHUB_ENV"
+
+      - name: Resolve Kaggle credentials (reuse proven v7 resolver)
+        env:
+          KAGGLE_JSON: ${{ secrets.KAGGLE_JSON }}
+          KAGGLE_USERNAME_IN: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY_IN: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path(".github/workflows/preflight-kaggle.yml").read_text().splitlines()
+          start = next(i for i, line in enumerate(lines) if "python3 - << 'PY'" in line)
+          indent = len(lines[start]) - len(lines[start].lstrip(" "))
+          body = []
+          for line in lines[start + 1:]:
+              if line.strip() == "PY" and len(line) - len(line.lstrip(" ")) == indent:
+                  break
+              body.append(line[indent:] if line.startswith(" " * indent) else line)
+          if not body or "credentials OK via" not in "\n".join(body):
+              raise SystemExit("could not extract the proven Kaggle credential resolver")
+          Path("/tmp/kaggle_resolver.py").write_text("\n".join(body) + "\n")
+          print(f"extracted proven resolver: {len(body)} lines")
+          PY
+          python3 /tmp/kaggle_resolver.py
+
+      - name: Reclaim runner disk (staging needs ~18GB peaks)
+        run: |
+          set -uo pipefail
+          df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          df -h / | tail -1
+
+      - name: Preflight — secrets, gated-model access, Kaggle shelves, disk
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          "$ASSETS_PY" - <<'PY'
+          import json, os, shutil, subprocess, sys, urllib.request, urllib.error
+          TARGETS = ['cine-assets-sao', 'cine-assets-wan-unet', 'cine-assets-umt5',
+                     'cine-assets-sdxl', 'cine-assets-gemma']
+          problems, warnings = [], []
+          hf = os.environ.get('HF_TOKEN', '')
+          gm = os.environ.get('GEMINI_API_KEY', '')
+          user = os.environ.get('KAGGLE_USERNAME', '')
+          print('kaggle user:', user or '(missing)')
+          print('HF_TOKEN present:', bool(hf), '| GEMINI_API_KEY present:', bool(gm))
+          if not user:
+              problems.append('Kaggle username unresolved (credential resolver step failed?)')
+          if not hf:
+              problems.append('HF_TOKEN secret is missing (repo Settings > Secrets and variables > Actions). Setup cannot download the gated music model without it.')
+          if not gm:
+              warnings.append('GEMINI_API_KEY secret is missing. Setup does NOT need it, but the '
+                              'production cell will use it for the Gemini voice (locked Kokoro '
+                              'is the fallback). Add it before producing videos.')
+              print('::warning::GEMINI_API_KEY missing (not needed for setup; needed later for Gemini voice)')
+          if hf:
+              req = urllib.request.Request(
+                  'https://huggingface.co/stabilityai/stable-audio-open-1.0/resolve/main/model_config.json',
+                  headers={'Authorization': f'Bearer {hf}'}, method='HEAD')
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      code = r.status
+              except urllib.error.HTTPError as he:
+                  code = he.code
+              except Exception as exc:
+                  code = f'error:{type(exc).__name__}'
+              print('Stable Audio Open file-auth probe ->', code)
+              if code in (401, 403):
+                  problems.append('HF_TOKEN cannot read Stable Audio Open files. Open '
+                                  'https://huggingface.co/stabilityai/stable-audio-open-1.0 with '
+                                  'the token account, accept the terms, then rerun.')
+              elif not (isinstance(code, int) and code < 400):
+                  warnings.append(f'SAO probe inconclusive ({code}); the download step will judge loudly.')
+          existing = []
+          if user:
+              r = subprocess.run(['kaggle', 'datasets', 'list', '--mine'], capture_output=True, text=True)
+              if r.returncode != 0:
+                  problems.append('kaggle datasets list failed: ' + (r.stderr or r.stdout)[-400:])
+              else:
+                  blob = r.stdout
+                  existing = [t for t in TARGETS if f'{user}/{t}' in blob]
+                  print('shelves already existing:', existing or 'none (first run)')
+          free_gb = shutil.disk_usage('/').free / 1e9
+          print(f'runner disk free: {free_gb:.1f}GB')
+          if free_gb < 18:
+              problems.append(f'runner disk free {free_gb:.1f}GB < 18GB staging peak')
+          json.dump({'user': user, 'existing': existing, 'warnings': warnings,
+                     'disk_free_gb': round(free_gb, 1)}, open('preflight.json', 'w'), indent=2)
+          for w in warnings:
+              print('WARNING:', w)
+          if problems:
+              for p in problems:
+                  print('::error::PREFLIGHT STOP:', p)
+              sys.exit(1)
+          print('PREFLIGHT PASS')
+          PY
+
+      - name: Build the five shelves (download -> stage -> verify -> upload)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -uo pipefail
+          "$ASSETS_PY" - <<'PY'
+          import hashlib, json, os, shutil, subprocess, sys, time, urllib.request
+          USER = os.environ.get('KAGGLE_USERNAME', '')
+          HF = os.environ.get('HF_TOKEN', '')
+          RT = os.environ.get('RUNNER_TEMP', '/tmp')
+          LOCKED_DIGEST = 'sha256:6114515d63c17436a7c0417d82820ac65ad643e2806c5a3c89cb62846436ed0b'
+          REV = {
+              'sao': 'f21265c1e2710b3bd2386596943f0007f55f802e',
+              'gguf': '57437632ddd08bdcbd1508c866aa22e126ed51d2',
+              'comfy': 'ee6f4a40737a995bf5818954cfce6d59443b0f04',
+              'sdxl': '462165984030d82259a11f4367a4eed129e94a7b',
+          }
+          SDXL_ALLOW = [
+              'model_index.json', 'scheduler/scheduler_config.json',
+              'tokenizer/merges.txt', 'tokenizer/special_tokens_map.json',
+              'tokenizer/tokenizer_config.json', 'tokenizer/vocab.json',
+              'tokenizer_2/merges.txt', 'tokenizer_2/special_tokens_map.json',
+              'tokenizer_2/tokenizer_config.json', 'tokenizer_2/vocab.json',
+              'text_encoder/config.json', 'text_encoder/model.fp16.safetensors',
+              'text_encoder_2/config.json', 'text_encoder_2/model.fp16.safetensors',
+              'unet/config.json', 'unet/diffusion_pytorch_model.fp16.safetensors',
+              'vae/config.json', 'vae/diffusion_pytorch_model.fp16.safetensors']
+          manifest = {'kaggle_user': USER, 'shelves': {}, 'failures': {}}
+          pre = json.load(open('preflight.json')) if os.path.isfile('preflight.json') else {}
+          EXISTING = set(pre.get('existing', []))
+
+          def save_manifest():
+              json.dump(manifest, open('setup_manifest.json', 'w'), indent=2)
+
+          def run(cmd, **kw):
+              print('+', ' '.join(cmd)[:160], flush=True)
+              return subprocess.run(cmd, capture_output=True, text=True, **kw)
+
+          def sha256_of(path):
+              h = hashlib.sha256()
+              with open(path, 'rb') as f:
+                  for chunk in iter(lambda: f.read(8 * 1024 * 1024), b''):
+                      h.update(chunk)
+              return h.hexdigest()
+
+          def parse_remote(text):
+              out = []
+              try:
+                  data = json.loads(text)
+              except Exception:
+                  return out
+              def walk(x):
+                  if isinstance(x, dict):
+                      name = x.get('name') or x.get('fileName')
+                      size = x.get('totalBytes') or x.get('size') or x.get('bytes')
+                      if name is not None and size is not None:
+                          try:
+                              out.append((os.path.basename(str(name)), int(size)))
+                          except Exception:
+                              pass
+                      for v in x.values():
+                          walk(v)
+                  elif isinstance(x, list):
+                      for v in x:
+                          walk(v)
+              walk(data)
+              return out
+
+          def remote_map(slug):
+              r = run(['kaggle', 'datasets', 'files', f'{USER}/{slug}', '--format', 'json'])
+              if r.returncode != 0:
+                  print(f'  remote list failed for {slug}:', (r.stderr or '')[-200:])
+                  return {}
+              return dict(parse_remote(r.stdout))
+
+          def download(repo, fname, rev, stage, flatten_as=None):
+              from huggingface_hub import hf_hub_download
+              p = hf_hub_download(repo, fname, revision=rev, token=HF, local_dir=stage)
+              if flatten_as:
+                  dst = os.path.join(stage, flatten_as)
+                  if os.path.abspath(p) != os.path.abspath(dst):
+                      os.replace(p, dst)
+                  return flatten_as
+              return os.path.relpath(p, stage)
+
+          def finalize(slug, title, stage, files, source, license_note, consumer):
+              shutil.rmtree(os.path.join(stage, '.cache'), ignore_errors=True)
+              recs = []
+              for rel in files:
+                  p = os.path.join(stage, rel)
+                  recs.append({'name': os.path.basename(rel), 'size': os.path.getsize(p),
+                               'sha256': sha256_of(p)})
+                  print(f'  staged {rel}: {recs[-1]["size"]/1e9:.2f}GB sha256 {recs[-1]["sha256"][:16]}')
+              json.dump({'title': title, 'id': f'{USER}/{slug}',
+                         'licenses': [{'name': 'CC0-1.0'}]},
+                        open(os.path.join(stage, 'dataset-metadata.json'), 'w'), indent=2)
+              expected = {r['name']: r['size'] for r in recs}
+              status = 'created'
+              if slug in EXISTING:
+                  remote = remote_map(slug)
+                  if remote and all(remote.get(k) == v for k, v in expected.items()):
+                      status = 'skipped_existing_match'
+                      print(f'  {slug}: remote already matches ({len(expected)} files) -> skip upload')
+                  else:
+                      r = run(['kaggle', 'datasets', 'version', '-p', stage,
+                               '-m', 'asset shelf refresh'])
+                      assert r.returncode == 0, 'datasets version failed: ' + (r.stderr or r.stdout)[-800:]
+                      status = 'new_version'
+              else:
+                  r = run(['kaggle', 'datasets', 'create', '-p', stage])
+                  assert r.returncode == 0, 'datasets create failed: ' + (r.stderr or r.stdout)[-800:]
+              if status != 'skipped_existing_match':
+                  ok, remote = False, {}
+                  for attempt in range(7):  # Kaggle file processing can lag; poll, do not guess
+                      time.sleep(30)
+                      remote = remote_map(slug)
+                      ok = bool(remote) and all(remote.get(k) == v for k, v in expected.items())
+                      print(f'  {slug}: post-upload verify try {attempt+1} ->', 'OK' if ok else f'waiting (remote={remote})')
+                      if ok:
+                          break
+                  assert ok, f'post-upload verification failed for {slug}: remote={remote} expected={expected}'
+              manifest['shelves'][slug] = {'dataset': f'{USER}/{slug}', 'title': title,
+                                           'status': status, 'files': recs, 'source': source,
+                                           'license': license_note, 'consumer': consumer}
+              save_manifest()
+
+          def shelf(slug, title, builder, source, license_note, consumer):
+              print(f'\n===== SHELF {slug} =====', flush=True)
+              print(f'disk free: {shutil.disk_usage("/").free/1e9:.1f}GB')
+              stage = os.path.join(RT, 'stage-' + slug)
+              shutil.rmtree(stage, ignore_errors=True)
+              os.makedirs(stage)
+              try:
+                  files = builder(stage)
+                  finalize(slug, title, stage, files, source, license_note, consumer)
+                  print(f'SHELF OK: {slug}')
+              except Exception as exc:  # named, recorded, other shelves continue
+                  manifest['failures'][slug] = f'{type(exc).__name__}: {exc}'
+                  save_manifest()
+                  print(f'::error::SHELF FAILED {slug}: {type(exc).__name__}: {exc}')
+              finally:
+                  shutil.rmtree(stage, ignore_errors=True)
+
+          def build_sao(stage):
+              a = download('stabilityai/stable-audio-open-1.0', 'model.safetensors', REV['sao'], stage)
+              b = download('stabilityai/stable-audio-open-1.0', 'model_config.json', REV['sao'], stage)
+              return [a, b]
+
+          def build_wan(stage):
+              a = download('QuantStack/Wan2.2-TI2V-5B-GGUF', 'Wan2.2-TI2V-5B-Q5_K_M.gguf', REV['gguf'], stage)
+              b = download('Comfy-Org/Wan_2.2_ComfyUI_repackaged',
+                           'split_files/vae/wan2.2_vae.safetensors', REV['comfy'], stage,
+                           flatten_as='wan2.2_vae.safetensors')
+              return [a, b]
+
+          def build_umt5(stage):
+              return [download('Comfy-Org/Wan_2.2_ComfyUI_repackaged',
+                               'split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors',
+                               REV['comfy'], stage,
+                               flatten_as='umt5_xxl_fp8_e4m3fn_scaled.safetensors')]
+
+          def build_sdxl(stage):
+              from huggingface_hub import snapshot_download
+              snap = snapshot_download('stabilityai/stable-diffusion-xl-base-1.0',
+                                       revision=REV['sdxl'], token=HF,
+                                       allow_patterns=SDXL_ALLOW,
+                                       local_dir=os.path.join(stage, 'sdxl_base'))
+              for rel in SDXL_ALLOW:
+                  assert os.path.isfile(os.path.join(stage, 'sdxl_base', rel)), f'missing {rel}'
+              tar_path = os.path.join(stage, 'sdxl_base.tar')
+              r = subprocess.run(['tar', '-cf', tar_path, '-C', stage, 'sdxl_base'],
+                                 capture_output=True, text=True)
+              assert r.returncode == 0, r.stderr[-400:]
+              shutil.rmtree(os.path.join(stage, 'sdxl_base'))
+              return ['sdxl_base.tar']
+
+          def build_gemma(stage):
+              if shutil.which('ollama') is None:
+                  subprocess.check_call('sudo apt-get -qq update && sudo apt-get -qq install -y zstd || true', shell=True)
+                  subprocess.check_call('curl -fsSL https://ollama.com/install.sh | sh', shell=True)
+              models_dir = os.path.join(stage, 'ollama_models')
+              env = dict(os.environ, OLLAMA_MODELS=models_dir, OLLAMA_HOST='127.0.0.1:11434')
+              srv = subprocess.Popen(['ollama', 'serve'], env=env,
+                                     stdout=open('/tmp/ollama_setup.log', 'w'),
+                                     stderr=subprocess.STDOUT)
+              try:
+                  for _ in range(60):
+                      try:
+                          urllib.request.urlopen('http://127.0.0.1:11434/api/tags', timeout=5)
+                          break
+                      except Exception:
+                          time.sleep(2)
+                  r = subprocess.run(['ollama', 'pull', 'gemma4:12b'], env=env,
+                                     capture_output=True, text=True)
+                  assert r.returncode == 0, 'ollama pull failed: ' + (r.stderr or r.stdout)[-500:]
+              finally:
+                  srv.terminate()
+              mpath = os.path.join(models_dir, 'manifests', 'registry.ollama.ai',
+                                   'library', 'gemma4', '12b')
+              m = json.load(open(mpath))
+              digests = set()
+              if m.get('config', {}).get('digest'):
+                  digests.add(m['config']['digest'])
+              for layer in m.get('layers', []):
+                  if layer.get('digest'):
+                      digests.add(layer['digest'])
+              print('gemma manifest digests:', sorted(digests))
+              assert LOCKED_DIGEST in digests, (
+                  'MODEL DRIFT STOP: pulled gemma4:12b does not carry the locked digest '
+                  f'{LOCKED_DIGEST}. Shelf NOT created.')
+              files = []
+              for d in sorted(digests):
+                  name = 'sha256-' + d.split(':', 1)[1]
+                  src = os.path.join(models_dir, 'blobs', name)
+                  assert os.path.isfile(src), f'missing blob {name}'
+                  os.replace(src, os.path.join(stage, name))
+                  files.append(name)
+              os.replace(mpath, os.path.join(stage, 'manifest__gemma4__12b'))
+              json.dump({'manifest_file': 'manifest__gemma4__12b',
+                         'manifest_target': 'manifests/registry.ollama.ai/library/gemma4/12b',
+                         'locked_digest': LOCKED_DIGEST, 'blobs': files},
+                        open(os.path.join(stage, 'layout.json'), 'w'), indent=2)
+              shutil.rmtree(models_dir, ignore_errors=True)
+              return files + ['manifest__gemma4__12b', 'layout.json']
+
+          shelf('cine-assets-sao', 'Cine Assets - Stable Audio Open 1.0 (music and SFX)',
+                build_sao, 'stabilityai/stable-audio-open-1.0@' + REV['sao'],
+                'Stability AI Community License: commercial use allowed up to $1M annual revenue',
+                'Load locally: create_model_from_config(model_config.json) + load_ckpt_state_dict(model.safetensors); no HF token inside kernels.')
+          shelf('cine-assets-wan-unet', 'Cine Assets - Wan2.2 TI2V-5B GGUF UNet and VAE',
+                build_wan, 'QuantStack/Wan2.2-TI2V-5B-GGUF@' + REV['gguf'] + ' + Comfy-Org repackaged VAE@' + REV['comfy'],
+                'Apache-2.0 (Wan weights)',
+                'Symlink gguf into ComfyUI/models/unet and vae into ComfyUI/models/vae.')
+          shelf('cine-assets-umt5', 'Cine Assets - UMT5 XXL fp8 text encoder (Wan)',
+                build_umt5, 'Comfy-Org/Wan_2.2_ComfyUI_repackaged@' + REV['comfy'],
+                'Apache-2.0 (UMT5 via Wan packaging)',
+                'Symlink into ComfyUI/models/text_encoders.')
+          shelf('cine-assets-sdxl', 'Cine Assets - SDXL Base 1.0 fp16 (reference frames)',
+                build_sdxl, 'stabilityai/stable-diffusion-xl-base-1.0@' + REV['sdxl'],
+                'OpenRAIL++-M',
+                'Untar sdxl_base.tar to scratch, load diffusers from local dir with variant="fp16", local_files_only=True.')
+          shelf('cine-assets-gemma', 'Cine Assets - Locked writer gemma4:12b (Ollama layout)',
+                build_gemma, 'Ollama registry gemma4:12b (manifest-verified digest)',
+                'Gemma license (model terms); used for script/director generation',
+                'Rebuild OLLAMA_MODELS layout from layout.json (blobs/ + manifests/...), serve, re-verify digest.')
+
+          save_manifest()
+          print('\nSHELF RESULTS:')
+          for slug, info in manifest['shelves'].items():
+              print(f"  OK  {slug}: {info['status']} ({len(info['files'])} files)")
+          for slug, err in manifest['failures'].items():
+              print(f'  FAIL {slug}: {err}')
+          if manifest['failures']:
+              print('::error::SETUP INCOMPLETE: named shelves above failed. Fix causes and rerun (completed shelves will be skipped).')
+              sys.exit(1)
+          print('ALL SHELVES READY')
+          PY
+
+      - name: Write run summary (shelf map for humans and future cells)
+        if: always()
+        run: |
+          set -uo pipefail
+          {
+            echo "### Kaggle asset shelves setup (run ${{ github.run_id }})"
+            echo
+            if [ -f preflight.json ]; then echo '```json'; cat preflight.json; echo; echo '```'; fi
+            if [ -f setup_manifest.json ]; then echo '```json'; cat setup_manifest.json; echo; echo '```';
+            else echo "_no manifest produced — read the failed step log above._"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload setup manifest artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaggle-assets-setup-${{ github.run_id }}
+          path: |
+            setup_manifest.json
+            preflight.json
+          if-no-files-found: warn
