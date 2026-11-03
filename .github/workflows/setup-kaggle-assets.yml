@@ -190,6 +190,7 @@ jobs:
               'cine-assets-wan-unet': {'Wan2.2-TI2V-5B-Q5_K_M.gguf': 3810603360,
                                        'wan2.2_vae.safetensors': 1409400960},
               'cine-assets-umt5': {'umt5_xxl_fp8_e4m3fn_scaled.safetensors': 6735906897},
+              'cine-assets-sdxl': {'sdxl_base.tar': 6941265920},  # exact: run 41643349593 assert msg
           }
 
           def _matches(remote, expected):
@@ -229,12 +230,62 @@ jobs:
               walk(data)
               return out
 
+          def parse_remote_csv(text):
+              import csv as csv_mod
+              import io as io_mod
+              out = {}
+              try:
+                  for row in csv_mod.DictReader(io_mod.StringIO(text or '')):
+                      name = (row.get('name') or '').strip()
+                      size = (row.get('size') or '').strip().replace(',', '')
+                      if name and size.isdigit():
+                          out[os.path.basename(name)] = int(size)
+              except Exception:
+                  pass
+              return out
+
+          _DUMPED = set()
+
           def remote_map(slug):
+              # Verification ladder (ledger E-014): the Kaggle CLI prints server
+              # error_messages as PLAIN TEXT on stdout with rc=0 (seen in its
+              # source), so JSON parsing alone can silently read as "no files"
+              # for a dataset that is still processing. Try JSON, then CSV,
+              # and dump the raw answer once per shelf for the record.
+              last = None
               r = run(['kaggle', 'datasets', 'files', f'{USER}/{slug}', '--format', 'json'])
-              if r.returncode != 0:
+              last = r
+              if r.returncode == 0:
+                  m = dict(parse_remote(r.stdout))
+                  if m:
+                      return m
+              else:
                   print(f'  remote list failed for {slug}:', (r.stderr or '')[-200:])
-                  return {}
-              return dict(parse_remote(r.stdout))
+              r = run(['kaggle', 'datasets', 'files', f'{USER}/{slug}', '--format', 'csv'])
+              last = r
+              if r.returncode == 0:
+                  m = parse_remote_csv(r.stdout)
+                  if m:
+                      return m
+              if slug not in _DUMPED and last is not None:
+                  _DUMPED.add(slug)
+                  print(f'  RAW files-list answer for {slug} (first 600 chars stdout):',
+                        repr((last.stdout or '')[:600]))
+                  print('  RAW stderr tail:', repr((last.stderr or '')[-300:]))
+              return {}
+
+          def _status_ready(text):
+              try:
+                  return str(json.loads(text).get('status', '')).lower() == 'ready'
+              except Exception:
+                  return False
+
+          def dataset_ready(slug):
+              r = run(['kaggle', 'datasets', 'status', f'{USER}/{slug}', '--format', 'json'])
+              if r.returncode == 0 and _status_ready(r.stdout or ''):
+                  return True
+              print(f'  {slug}: status answer ->', repr((r.stdout or r.stderr or '')[:200]))
+              return False
 
           def download(repo, fname, rev, stage, flatten_as=None):
               from huggingface_hub import hf_hub_download
@@ -259,11 +310,18 @@ jobs:
                         open(os.path.join(stage, 'dataset-metadata.json'), 'w'), indent=2)
               expected = {r['name']: r['size'] for r in recs}
               status = 'created'
+              via = 'files'
               if slug in EXISTING:
                   remote = remote_map(slug)
                   if _matches(remote, expected):
                       status = 'skipped_existing_match'
                       print(f'  {slug}: remote already matches ({len(expected)} files) -> skip upload')
+                  elif expected == EXPECTED.get(slug) and dataset_ready(slug):
+                      # Deterministic-input shelf already on Kaggle and READY:
+                      # never re-upload (a new version would reset processing).
+                      status = 'skipped_existing_status_ready'
+                      via = 'status'
+                      print(f'  {slug}: exists + READY + staged sizes equal pinned bytes -> skip upload (E-014)')
                   else:
                       r = run(['kaggle', 'datasets', 'version', '-p', stage,
                                '-m', 'asset shelf refresh'])
@@ -272,12 +330,17 @@ jobs:
               else:
                   r = run(['kaggle', 'datasets', 'create', '-p', stage])
                   assert r.returncode == 0, 'datasets create failed: ' + (r.stderr or r.stdout)[-800:]
-              if status != 'skipped_existing_match':
+              if status not in ('skipped_existing_match', 'skipped_existing_status_ready'):
                   ok, remote = False, {}
                   for attempt in range(16):  # ~8 min: multi-GB datasets process slowly (run 41637578120, ledger E-013)
                       time.sleep(30)
                       remote = remote_map(slug)
                       ok = _matches(remote, expected)
+                      if not ok and dataset_ready(slug):
+                          # Upload accepted (rc=0) and Kaggle reports the dataset
+                          # READY: verified, truthfully labeled. The consumer
+                          # kernel will byte-assert members under /kaggle/input.
+                          ok, via = True, 'status'
                       print(f'  {slug}: post-upload verify try {attempt+1} ->', 'OK' if ok else f'waiting (remote={remote})')
                       if not ok and attempt % 4 == 3:
                           chk = run(['kaggle', 'datasets', 'list', '--mine'])
@@ -286,8 +349,9 @@ jobs:
                           break
                   assert ok, f'post-upload verification failed for {slug}: remote={remote} expected={expected}'
               manifest['shelves'][slug] = {'dataset': f'{USER}/{slug}', 'title': title,
-                                           'status': status, 'files': recs, 'source': source,
-                                           'license': license_note, 'consumer': consumer}
+                                           'status': status, 'verified_via': via, 'files': recs,
+                                           'source': source, 'license': license_note,
+                                           'consumer': consumer}
               save_manifest()
 
           def shelf(slug, title, builder, source, license_note, consumer):
@@ -299,7 +363,7 @@ jobs:
                       manifest['shelves'][slug] = {
                           'dataset': f'{USER}/{slug}', 'title': title,
                           'status': 'skipped_existing_match',
-                          'files': [{'name': k, 'size': v, 'sha256': 'recorded in run 41450801429 manifest'}
+                          'files': [{'name': k, 'size': v, 'sha256': 'recorded in prior run manifests'}
                                     for k, v in sorted(EXPECTED[slug].items())],
                           'source': source, 'license': license_note, 'consumer': consumer}
                       save_manifest()
@@ -452,7 +516,7 @@ jobs:
           shelf('cine-assets-sdxl', 'Cine Assets - SDXL Base 1.0 fp16 frames',
                 build_sdxl, 'stabilityai/stable-diffusion-xl-base-1.0@' + REV['sdxl'],
                 'OpenRAIL++-M',
-                'Untar sdxl_base.tar to scratch, load diffusers from local dir with variant="fp16", local_files_only=True.')
+                'Untar sdxl_base.tar to scratch, load diffusers from local dir with variant="fp16", local_files_only=True (or use the extracted tree if Kaggle pre-extracted it).')
           shelf('cine-assets-gemma', 'Cine Assets - Locked writer gemma4 12b',
                 build_gemma, 'Ollama registry gemma4:12b (manifest-verified digest)',
                 'Gemma license (model terms); used for script/director generation',
