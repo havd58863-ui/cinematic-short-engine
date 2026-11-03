@@ -274,11 +274,14 @@ jobs:
                   assert r.returncode == 0, 'datasets create failed: ' + (r.stderr or r.stdout)[-800:]
               if status != 'skipped_existing_match':
                   ok, remote = False, {}
-                  for attempt in range(7):  # Kaggle file processing can lag; poll, do not guess
+                  for attempt in range(16):  # ~8 min: multi-GB datasets process slowly (run 41637578120, ledger E-013)
                       time.sleep(30)
                       remote = remote_map(slug)
                       ok = _matches(remote, expected)
                       print(f'  {slug}: post-upload verify try {attempt+1} ->', 'OK' if ok else f'waiting (remote={remote})')
+                      if not ok and attempt % 4 == 3:
+                          chk = run(['kaggle', 'datasets', 'list', '--mine'])
+                          print(f'  {slug}: existence check ->', f'{USER}/{slug}' in (chk.stdout or ''))
                       if ok:
                           break
                   assert ok, f'post-upload verification failed for {slug}: remote={remote} expected={expected}'
