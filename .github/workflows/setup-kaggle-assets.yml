@@ -182,6 +182,19 @@ jobs:
           def save_manifest():
               json.dump(manifest, open('setup_manifest.json', 'w'), indent=2)
 
+          # Exact byte sizes at the pinned revisions (HF API blobs, cross-checked
+          # against run 41450801429's manifest). Lets a completed shelf be skipped
+          # WITHOUT re-downloading gigabytes just to compare sizes (ledger E-012).
+          EXPECTED = {
+              'cine-assets-sao': {'model.safetensors': 4853889016, 'model_config.json': 4172},
+              'cine-assets-wan-unet': {'Wan2.2-TI2V-5B-Q5_K_M.gguf': 3810603360,
+                                       'wan2.2_vae.safetensors': 1409400960},
+              'cine-assets-umt5': {'umt5_xxl_fp8_e4m3fn_scaled.safetensors': 6735906897},
+          }
+
+          def _matches(remote, expected):
+              return bool(remote) and all(remote.get(k) == v for k, v in expected.items())
+
           def run(cmd, **kw):
               print('+', ' '.join(cmd)[:160], flush=True)
               return subprocess.run(cmd, capture_output=True, text=True, **kw)
@@ -248,7 +261,7 @@ jobs:
               status = 'created'
               if slug in EXISTING:
                   remote = remote_map(slug)
-                  if remote and all(remote.get(k) == v for k, v in expected.items()):
+                  if _matches(remote, expected):
                       status = 'skipped_existing_match'
                       print(f'  {slug}: remote already matches ({len(expected)} files) -> skip upload')
                   else:
@@ -264,7 +277,7 @@ jobs:
                   for attempt in range(7):  # Kaggle file processing can lag; poll, do not guess
                       time.sleep(30)
                       remote = remote_map(slug)
-                      ok = bool(remote) and all(remote.get(k) == v for k, v in expected.items())
+                      ok = _matches(remote, expected)
                       print(f'  {slug}: post-upload verify try {attempt+1} ->', 'OK' if ok else f'waiting (remote={remote})')
                       if ok:
                           break
@@ -277,10 +290,24 @@ jobs:
           def shelf(slug, title, builder, source, license_note, consumer):
               print(f'\n===== SHELF {slug} =====', flush=True)
               print(f'disk free: {shutil.disk_usage("/").free/1e9:.1f}GB')
+              if slug in EXISTING and slug in EXPECTED:
+                  remote = remote_map(slug)
+                  if _matches(remote, EXPECTED[slug]):
+                      manifest['shelves'][slug] = {
+                          'dataset': f'{USER}/{slug}', 'title': title,
+                          'status': 'skipped_existing_match',
+                          'files': [{'name': k, 'size': v, 'sha256': 'recorded in run 41450801429 manifest'}
+                                    for k, v in sorted(EXPECTED[slug].items())],
+                          'source': source, 'license': license_note, 'consumer': consumer}
+                      save_manifest()
+                      print(f'SHELF SKIP (already complete): {slug}')
+                      return
+                  print(f'  {slug}: exists but remote differs (remote={remote}) -> rebuild path')
               stage = os.path.join(RT, 'stage-' + slug)
               shutil.rmtree(stage, ignore_errors=True)
               os.makedirs(stage)
               try:
+                  assert 6 <= len(title) <= 50, f'dataset title must be 6..50 chars, got {len(title)} (ledger E-012)'
                   files = builder(stage)
                   finalize(slug, title, stage, files, source, license_note, consumer)
                   print(f'SHELF OK: {slug}')
@@ -311,7 +338,7 @@ jobs:
 
           def build_sdxl(stage):
               from huggingface_hub import snapshot_download
-              snap = snapshot_download('stabilityai/stable-diffusion-xl-base-1.0',
+              snapshot_download('stabilityai/stable-diffusion-xl-base-1.0',
                                        revision=REV['sdxl'], token=HF,
                                        allow_patterns=SDXL_ALLOW,
                                        local_dir=os.path.join(stage, 'sdxl_base'))
@@ -325,28 +352,56 @@ jobs:
               return ['sdxl_base.tar']
 
           def build_gemma(stage):
+              models_dir = os.path.join(stage, 'ollama_models')
+              host = '127.0.0.1:11435'  # ours alone; never share :11434 (ledger E-012)
               if shutil.which('ollama') is None:
                   subprocess.check_call('sudo apt-get -qq update && sudo apt-get -qq install -y zstd || true', shell=True)
                   subprocess.check_call('curl -fsSL https://ollama.com/install.sh | sh', shell=True)
-              models_dir = os.path.join(stage, 'ollama_models')
-              env = dict(os.environ, OLLAMA_MODELS=models_dir, OLLAMA_HOST='127.0.0.1:11434')
+                  # install.sh auto-starts a systemd service on :11434 bound to the
+                  # DEFAULT models dir; on run 41450801429 it captured our pull and
+                  # the staged dir stayed empty. Stop it decisively before serving.
+                  subprocess.run('sudo systemctl stop ollama || true', shell=True)
+                  subprocess.run("pkill -f 'ollama serve' || true", shell=True)
+                  time.sleep(3)
+              env = dict(os.environ, OLLAMA_MODELS=models_dir, OLLAMA_HOST=host)
               srv = subprocess.Popen(['ollama', 'serve'], env=env,
                                      stdout=open('/tmp/ollama_setup.log', 'w'),
                                      stderr=subprocess.STDOUT)
               try:
+                  ready = False
                   for _ in range(60):
+                      if srv.poll() is not None:
+                          tail = ''
+                          try:
+                              tail = open('/tmp/ollama_setup.log').read()[-400:]
+                          except Exception:
+                              pass
+                          raise RuntimeError('our ollama serve exited early: ' + tail)
                       try:
-                          urllib.request.urlopen('http://127.0.0.1:11434/api/tags', timeout=5)
+                          urllib.request.urlopen(f'http://{host}/api/tags', timeout=5)
+                          ready = True
                           break
                       except Exception:
                           time.sleep(2)
+                  assert ready, 'ollama serve on custom port 11435 never became ready'
                   r = subprocess.run(['ollama', 'pull', 'gemma4:12b'], env=env,
                                      capture_output=True, text=True)
                   assert r.returncode == 0, 'ollama pull failed: ' + (r.stderr or r.stdout)[-500:]
+                  lst = subprocess.run(['ollama', 'list'], env=env, capture_output=True, text=True)
+                  print('ollama list ->', (lst.stdout or '').strip()[:300])
               finally:
                   srv.terminate()
-              mpath = os.path.join(models_dir, 'manifests', 'registry.ollama.ai',
-                                   'library', 'gemma4', '12b')
+              rel_manifest = os.path.join('manifests', 'registry.ollama.ai', 'library', 'gemma4', '12b')
+              mpath = os.path.join(models_dir, rel_manifest)
+              if not os.path.isfile(mpath):
+                  # Salvage loudly: adopt wherever the pull actually landed.
+                  for cand in ('/usr/share/ollama/.ollama/models',
+                               os.path.expanduser('~/.ollama/models'), '/root/.ollama/models'):
+                      p = os.path.join(cand, rel_manifest)
+                      if os.path.isfile(p):
+                          print('adopting pulled models from', cand)
+                          models_dir, mpath = cand, p
+                          break
               m = json.load(open(mpath))
               digests = set()
               if m.get('config', {}).get('digest'):
@@ -358,22 +413,28 @@ jobs:
               assert LOCKED_DIGEST in digests, (
                   'MODEL DRIFT STOP: pulled gemma4:12b does not carry the locked digest '
                   f'{LOCKED_DIGEST}. Shelf NOT created.')
+              def take(src, dst):
+                  try:
+                      os.replace(src, dst)
+                  except OSError:  # adopted system dir may be root-owned
+                      subprocess.check_call(['sudo', 'cp', src, dst])
               files = []
               for d in sorted(digests):
                   name = 'sha256-' + d.split(':', 1)[1]
                   src = os.path.join(models_dir, 'blobs', name)
                   assert os.path.isfile(src), f'missing blob {name}'
-                  os.replace(src, os.path.join(stage, name))
+                  take(src, os.path.join(stage, name))
                   files.append(name)
-              os.replace(mpath, os.path.join(stage, 'manifest__gemma4__12b'))
+              take(mpath, os.path.join(stage, 'manifest__gemma4__12b'))
               json.dump({'manifest_file': 'manifest__gemma4__12b',
                          'manifest_target': 'manifests/registry.ollama.ai/library/gemma4/12b',
                          'locked_digest': LOCKED_DIGEST, 'blobs': files},
                         open(os.path.join(stage, 'layout.json'), 'w'), indent=2)
-              shutil.rmtree(models_dir, ignore_errors=True)
+              if models_dir.startswith(stage):
+                  shutil.rmtree(models_dir, ignore_errors=True)
               return files + ['manifest__gemma4__12b', 'layout.json']
 
-          shelf('cine-assets-sao', 'Cine Assets - Stable Audio Open 1.0 (music and SFX)',
+          shelf('cine-assets-sao', 'Cine Assets - Stable Audio Open 1.0',
                 build_sao, 'stabilityai/stable-audio-open-1.0@' + REV['sao'],
                 'Stability AI Community License: commercial use allowed up to $1M annual revenue',
                 'Load locally: create_model_from_config(model_config.json) + load_ckpt_state_dict(model.safetensors); no HF token inside kernels.')
@@ -385,11 +446,11 @@ jobs:
                 build_umt5, 'Comfy-Org/Wan_2.2_ComfyUI_repackaged@' + REV['comfy'],
                 'Apache-2.0 (UMT5 via Wan packaging)',
                 'Symlink into ComfyUI/models/text_encoders.')
-          shelf('cine-assets-sdxl', 'Cine Assets - SDXL Base 1.0 fp16 (reference frames)',
+          shelf('cine-assets-sdxl', 'Cine Assets - SDXL Base 1.0 fp16 frames',
                 build_sdxl, 'stabilityai/stable-diffusion-xl-base-1.0@' + REV['sdxl'],
                 'OpenRAIL++-M',
                 'Untar sdxl_base.tar to scratch, load diffusers from local dir with variant="fp16", local_files_only=True.')
-          shelf('cine-assets-gemma', 'Cine Assets - Locked writer gemma4:12b (Ollama layout)',
+          shelf('cine-assets-gemma', 'Cine Assets - Locked writer gemma4 12b',
                 build_gemma, 'Ollama registry gemma4:12b (manifest-verified digest)',
                 'Gemma license (model terms); used for script/director generation',
                 'Rebuild OLLAMA_MODELS layout from layout.json (blobs/ + manifests/...), serve, re-verify digest.')
