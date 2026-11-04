@@ -4,12 +4,14 @@ name: Gate — Scenes on Kaggle (SDXL frame + Wan GGUF clip)
 # Pushes ONE private Kaggle GPU kernel that must prove, end to end and with
 # zero internet downloads of weights:
 #   1) the shelves mount and every expected file is discoverable BY NAME
-#      under /kaggle/input (mount prefixes vary), asserted loudly;
+#      under /kaggle/input (mount prefixes vary), asserted loudly, then the
+#      weights are staged onto fast local disk (run 41834792193, ledger E-015);
 #   2) SDXL (shelf cine-assets-sdxl, tar or pre-extracted tree) renders one
-#      cinematic 704x1248 reference frame;
+#      cinematic 768x1344 reference frame;
 #   3) native ComfyUI + ComfyUI-GGUF animates that frame with the shelf
-#      Wan2.2-TI2V-5B Q5_K_M GGUF + VAE + UMT5 fp8 into a real 49-frame clip
-#      (template-true params: shift 8.0, 20 steps, cfg 5.0, uni_pc/simple);
+#      Wan2.2-TI2V-5B Q5_K_M GGUF + VAE + UMT5 fp8 into a real 33-frame clip
+#      at 576x1024 (template-true params: shift 8.0, 20 steps, cfg 5.0,
+#      uni_pc/simple; resolution/length sized to a 16GB T4, ledger E-015);
 #   4) evidence returns: clip.mp4, the source frame, 6 stills, a contact
 #      sheet and report.json (phases, timings, object_info proofs, sizes).
 # The gate PASSES only if the owner approves the look with his own eyes;
@@ -92,8 +94,8 @@ jobs:
           }
           JSON
           cat > scene_gate/scene_gate.py <<'PY'
-          # Scene gate kernel: shelf discovery -> SDXL frame -> ComfyUI/Wan I2V
-          # -> ffmpeg assembly -> evidence. Fails loudly, by name, per phase.
+          # Scene gate kernel: shelf discovery -> local staging -> SDXL frame ->
+          # ComfyUI/Wan I2V -> ffmpeg assembly -> evidence. Loud, named phases.
           import glob
           import json
           import os
@@ -107,8 +109,10 @@ jobs:
 
           WORK = '/kaggle/working'
           OUT = os.path.join(WORK, 'out')
+          LOCAL_MODELS = '/tmp/models'
           PARAMS = {
-              'width': 704, 'height': 1248, 'length': 49, 'fps': 24,
+              'width': 576, 'height': 1024, 'length': 33, 'fps': 24,
+              'frame_w': 768, 'frame_h': 1344,
               'seed': 20261103, 'frame_steps': 28, 'frame_cfg': 6.5,
               'wan_steps': 20, 'wan_cfg': 5.0, 'wan_shift': 8.0,
               'sampler': 'uni_pc', 'scheduler': 'simple',
@@ -184,20 +188,45 @@ jobs:
                       return d
               raise FileNotFoundError('sdxl_base.tar extracted but no diffusers tree inside')
 
+          def stage_local_file(src):
+              # /kaggle/input is a slow network mount; model paging from it was a
+              # prime suspect in run 41834792193 (ledger E-015). Copy once, fast.
+              os.makedirs(LOCAL_MODELS, exist_ok=True)
+              dst = os.path.join(LOCAL_MODELS, os.path.basename(src))
+              if not (os.path.isfile(dst) and os.path.getsize(dst) == os.path.getsize(src)):
+                  t = time.time()
+                  run(['cp', src, dst], timeout=1800)
+                  print(f'  staged local {os.path.basename(src)} in {time.time()-t:.0f}s')
+              return dst
+
+          def stage_local_sdxl(sdxl_dir):
+              if not sdxl_dir.startswith('/kaggle/input'):
+                  return sdxl_dir
+              dst = '/tmp/sdxl_local'
+              if not os.path.isfile(os.path.join(dst, 'model_index.json')):
+                  t = time.time()
+                  run(['cp', '-r', sdxl_dir, dst], timeout=2400)
+                  print(f'  staged local SDXL tree in {time.time()-t:.0f}s')
+              return dst
+
           FRAME_SRC = '''
-          import json, sys
+          import json, sys, time
           import torch
           from diffusers import AutoPipelineForText2Image
           cfg = json.load(open(sys.argv[1]))
           print('torch', torch.__version__, 'cuda', torch.cuda.is_available(),
                 torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cpu', flush=True)
+          t0 = time.time()
           pipe = AutoPipelineForText2Image.from_pretrained(
               cfg['model_dir'], torch_dtype=torch.float16, variant='fp16', local_files_only=True)
           pipe = pipe.to('cuda')
+          print('load_seconds', round(time.time() - t0, 1), flush=True)
+          t0 = time.time()
           g = torch.Generator(device='cuda').manual_seed(cfg['seed'])
           img = pipe(prompt=cfg['prompt'], negative_prompt=cfg['neg'],
                      width=cfg['w'], height=cfg['h'], num_inference_steps=cfg['steps'],
                      guidance_scale=cfg['cfg'], generator=g).images[0]
+          print('gen_seconds', round(time.time() - t0, 1), flush=True)
           img.save(cfg['out'])
           print('frame saved', cfg['out'], img.size,
                 'peakVRAM_GB', round(torch.cuda.max_memory_allocated()/1e9, 2), flush=True)
@@ -244,25 +273,34 @@ jobs:
 
           def main():
               os.makedirs(OUT, exist_ok=True)
-              with phase('discover_shelves'):
-                  gguf = find('Wan2.2-TI2V-5B-Q5_K_M.gguf')
-                  vae = find('wan2.2_vae.safetensors')
-                  umt5 = find('umt5_xxl_fp8_e4m3fn_scaled.safetensors')
-                  sdxl_dir = find_sdxl_dir()
+              with phase('discover_and_stage'):
+                  gguf = stage_local_file(find('Wan2.2-TI2V-5B-Q5_K_M.gguf'))
+                  vae = stage_local_file(find('wan2.2_vae.safetensors'))
+                  umt5 = stage_local_file(find('umt5_xxl_fp8_e4m3fn_scaled.safetensors'))
+                  sdxl_dir = stage_local_sdxl(find_sdxl_dir())
                   status['evidence']['shelf_files'] = {
                       'gguf': gguf, 'vae': vae, 'umt5': umt5, 'sdxl_dir': sdxl_dir}
               with phase('frame_sdxl'):
-                  run([sys.executable, '-m', 'pip', 'install', '-q', '--disable-pip-version-check',
-                       'diffusers==0.42.1', 'transformers==5.22.1', 'accelerate==1.15.0'], timeout=1800)
+                  probe = subprocess.run(
+                      [sys.executable, '-c', 'import diffusers, transformers, accelerate'],
+                      capture_output=True, text=True)
+                  if probe.returncode != 0:
+                      t = time.time()
+                      run([sys.executable, '-m', 'pip', 'install', '-q', '--disable-pip-version-check',
+                           'diffusers==0.42.1', 'transformers==5.22.1', 'accelerate==1.15.0'], timeout=2400)
+                      status['evidence']['frame_env'] = f'pip-installed in {time.time()-t:.0f}s'
+                  else:
+                      status['evidence']['frame_env'] = 'image-provided (no pip install)'
                   cfg = {'model_dir': sdxl_dir, 'out': os.path.join(OUT, 'frame_01.png'),
                          'prompt': FRAME_PROMPT, 'neg': NEG, 'seed': PARAMS['seed'],
-                         'w': PARAMS['width'], 'h': PARAMS['height'],
+                         'w': PARAMS['frame_w'], 'h': PARAMS['frame_h'],
                          'steps': PARAMS['frame_steps'], 'cfg': PARAMS['frame_cfg']}
                   with open('/tmp/frame_cfg.json', 'w') as f:
                       json.dump(cfg, f)
                   with open('/tmp/frame_gen.py', 'w') as f:
                       f.write(FRAME_SRC)
-                  run([sys.executable, '/tmp/frame_gen.py', '/tmp/frame_cfg.json'], timeout=1800)
+                  fr = run([sys.executable, '/tmp/frame_gen.py', '/tmp/frame_cfg.json'], timeout=2400)
+                  status['evidence']['frame_stdout_tail'] = (fr.stdout or '')[-600:]
                   assert os.path.getsize(cfg['out']) > 50000, 'frame_01.png missing or tiny'
               with phase('install_comfyui'):
                   if not os.path.isdir(COMFY):
@@ -287,7 +325,8 @@ jobs:
               with phase('wan_i2v'):
                   logf = open('/tmp/comfy.log', 'w')
                   srv = subprocess.Popen(
-                      [sys.executable, 'main.py', '--listen', '127.0.0.1', '--port', '8188'],
+                      [sys.executable, 'main.py', '--listen', '127.0.0.1', '--port', '8188',
+                       '--disable-dynamic-vram'],
                       cwd=COMFY, stdout=logf, stderr=subprocess.STDOUT)
                   base = 'http://127.0.0.1:8188'
                   try:
@@ -324,7 +363,7 @@ jobs:
                       pid = resp['prompt_id']
                       print('prompt queued:', pid, flush=True)
                       hist = None
-                      for _ in range(225):  # 75 minutes at 20s
+                      for tick in range(450):  # 150 minutes at 20s (ledger E-015)
                           time.sleep(20)
                           h = requests.get(f'{base}/history/{pid}', timeout=30).json()
                           if pid in h:
@@ -335,18 +374,27 @@ jobs:
                               if st.get('completed'):
                                   hist = h[pid]
                                   break
-                      assert hist, 'ComfyUI prompt did not complete in 75 minutes'
+                          if tick % 15 == 14:
+                              try:
+                                  q = requests.get(base + '/queue', timeout=15).json()
+                                  note = f"running={len(q.get('queue_running', []))} pending={len(q.get('queue_pending', []))} at tick {tick}"
+                                  status['evidence']['queue_note'] = note
+                                  print('queue:', note, flush=True)
+                                  save_status()
+                              except Exception:
+                                  pass
+                      assert hist, 'ComfyUI prompt did not complete in 150 minutes'
                       imgs = hist['outputs']['11']['images']
                       frames = [os.path.join(COMFY, 'output', i.get('subfolder', ''), i['filename'])
                                 for i in imgs]
                       frames = sorted(p for p in frames if os.path.isfile(p))
                       status['evidence']['frames_rendered'] = len(frames)
-                      assert len(frames) >= 40, f'only {len(frames)} frames rendered'
+                      assert len(frames) >= 30, f'only {len(frames)} frames rendered'
                   finally:
                       srv.terminate()
                       try:
                           with open('/tmp/comfy.log') as f:
-                              status['evidence']['comfy_log_tail'] = f.read()[-1500:]
+                              status['evidence']['comfy_log_tail'] = f.read()[-4000:]
                       except Exception:
                           pass
               with phase('assemble_evidence'):
@@ -367,7 +415,8 @@ jobs:
                   for i, p in enumerate(picks):
                       shutil.copy2(p, os.path.join(OUT, f'still_{i+1}.png'))
                   from PIL import Image
-                  tw, th = PARAMS['width'] // 2, PARAMS['height'] // 2
+                  full_w, full_h = Image.open(picks[0]).size
+                  tw, th = full_w // 2, full_h // 2
                   sheet = Image.new('RGB', (tw * 3, th * 2), 'black')
                   for i, p in enumerate(picks):
                       sheet.paste(Image.open(p).resize((tw, th)), ((i % 3) * tw, (i // 3) * th))
@@ -398,7 +447,7 @@ jobs:
           set -uo pipefail
           kaggle kernels push -p scene_gate --accelerator NvidiaTeslaT4
           kernel_state="running"
-          for i in $(seq 1 115); do
+          for i in $(seq 1 170); do
             out=$(kaggle kernels status "$KAGGLE_USERNAME/cine-engine-scene-gate" 2>&1 || true)
             echo "[poll $i] $out"
             case "$out" in
