@@ -1,0 +1,467 @@
+name: Gate — Scenes on Kaggle (SDXL frame + Wan GGUF clip)
+
+# SCENE GATE: the first consumer of the asset shelves (setup-kaggle-assets).
+# Pushes ONE private Kaggle GPU kernel that must prove, end to end and with
+# zero internet downloads of weights:
+#   1) the shelves mount and every expected file is discoverable BY NAME
+#      under /kaggle/input (mount prefixes vary), asserted loudly;
+#   2) SDXL (shelf cine-assets-sdxl, tar or pre-extracted tree) renders one
+#      cinematic 704x1248 reference frame;
+#   3) native ComfyUI + ComfyUI-GGUF animates that frame with the shelf
+#      Wan2.2-TI2V-5B Q5_K_M GGUF + VAE + UMT5 fp8 into a real 49-frame clip
+#      (template-true params: shift 8.0, 20 steps, cfg 5.0, uni_pc/simple);
+#   4) evidence returns: clip.mp4, the source frame, 6 stills, a contact
+#      sheet and report.json (phases, timings, object_info proofs, sizes).
+# The gate PASSES only if the owner approves the look with his own eyes;
+# technical success alone does not open production. No secret ever enters
+# the kernel (public/ungated weights come from the private shelves).
+# Manual dispatch only.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Check out repository (for the proven credential resolver)
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI 2.2.5 in an isolated venv
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/kaggle-venv"
+          # six pinned explicitly (ledger E-011): kaggle 2.2.5 imports six but
+          # its metadata omits it; python-dateutil 4.0.0 dropped the transitive six.
+          "$RUNNER_TEMP/kaggle-venv/bin/python" -m pip install --disable-pip-version-check -q "kaggle==2.2.5" "six==1.17.0"
+          echo "$RUNNER_TEMP/kaggle-venv/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/kaggle-venv/bin/kaggle" --version
+          "$RUNNER_TEMP/kaggle-venv/bin/kaggle" kernels push --help >/dev/null
+
+      - name: Resolve Kaggle credentials (reuse proven v7 resolver)
+        env:
+          KAGGLE_JSON: ${{ secrets.KAGGLE_JSON }}
+          KAGGLE_USERNAME_IN: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY_IN: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path(".github/workflows/preflight-kaggle.yml").read_text().splitlines()
+          start = next(i for i, line in enumerate(lines) if "python3 - << 'PY'" in line)
+          indent = len(lines[start]) - len(lines[start].lstrip(" "))
+          body = []
+          for line in lines[start + 1:]:
+              if line.strip() == "PY" and len(line) - len(line.lstrip(" ")) == indent:
+                  break
+              body.append(line[indent:] if line.startswith(" " * indent) else line)
+          if not body or "credentials OK via" not in "\n".join(body):
+              raise SystemExit("could not extract the proven Kaggle credential resolver")
+          Path("/tmp/kaggle_resolver.py").write_text("\n".join(body) + "\n")
+          print(f"extracted proven resolver: {len(body)} lines")
+          PY
+          python3 /tmp/kaggle_resolver.py
+
+      - name: Build scene gate kernel
+        run: |
+          set -euo pipefail
+          mkdir -p scene_gate
+          cat > scene_gate/kernel-metadata.json <<JSON
+          {
+            "id": "$KAGGLE_USERNAME/cine-engine-scene-gate",
+            "title": "cine-engine-scene-gate",
+            "code_file": "scene_gate.py",
+            "language": "python",
+            "kernel_type": "script",
+            "is_private": true,
+            "enable_gpu": true,
+            "enable_tpu": false,
+            "enable_internet": true,
+            "machine_shape": "NvidiaTeslaT4",
+            "dataset_sources": [
+              "$KAGGLE_USERNAME/cine-assets-sdxl",
+              "$KAGGLE_USERNAME/cine-assets-wan-unet",
+              "$KAGGLE_USERNAME/cine-assets-umt5"
+            ],
+            "kernel_sources": [],
+            "model_sources": []
+          }
+          JSON
+          cat > scene_gate/scene_gate.py <<'PY'
+          # Scene gate kernel: shelf discovery -> SDXL frame -> ComfyUI/Wan I2V
+          # -> ffmpeg assembly -> evidence. Fails loudly, by name, per phase.
+          import glob
+          import json
+          import os
+          import shutil
+          import subprocess
+          import sys
+          import time
+          import traceback
+
+          import requests
+
+          WORK = '/kaggle/working'
+          OUT = os.path.join(WORK, 'out')
+          PARAMS = {
+              'width': 704, 'height': 1248, 'length': 49, 'fps': 24,
+              'seed': 20261103, 'frame_steps': 28, 'frame_cfg': 6.5,
+              'wan_steps': 20, 'wan_cfg': 5.0, 'wan_shift': 8.0,
+              'sampler': 'uni_pc', 'scheduler': 'simple',
+          }
+          FRAME_PROMPT = ('cinematic film still, a lone man seen from behind sitting on the edge '
+                          'of an unmade bed in a dark room at 3am, head bowed, cold blue moonlight '
+                          'through rain-streaked window blinds, a warm amber bedside lamp glowing at '
+                          'the frame edge, dust particles drifting in the light beam, shallow depth '
+                          'of field, moody teal and amber grade, photorealistic, detailed')
+          WAN_PROMPT = ('slow cinematic push-in toward the man as he slowly lowers his head into '
+                        'his hands, rain streaks running down the window glass, bands of moonlight '
+                        'through the blinds trembling subtly, dust drifting in the light beam, '
+                        'restrained realistic motion, photorealistic, stable identity')
+          NEG = ('low quality, blurry, deformed hands, extra fingers, distorted face, morphing, '
+                 'identity change, flicker, jitter, watermark, text, cartoon, oversaturated, '
+                 'bright daylight')
+          COMFY_SHA = '70bcb4e9fc70f19b7cdb340966351ed6479f2188'
+          GGUF_SHA = '6ea2651e7df66d7585f6ffee804b20e92fb38b8a'
+          COMFY = '/tmp/ComfyUI'
+          status = {'result': 'RUNNING', 'phases': {}, 'params': PARAMS, 'evidence': {}}
+
+          def save_status():
+              try:
+                  with open(os.path.join(WORK, 'scene_gate_status.json'), 'w') as f:
+                      json.dump(status, f, indent=2)
+              except Exception:
+                  pass
+
+          def phase(name):
+              class _P:
+                  def __enter__(self):
+                      self.t = time.time()
+                      print(f'===== PHASE {name} =====', flush=True)
+                      return self
+                  def __exit__(self, *exc):
+                      status['phases'][name] = round(time.time() - self.t, 1)
+                      save_status()
+                      return False
+              return _P()
+
+          def run(cmd, cwd=None, timeout=None):
+              print('+', ' '.join(cmd)[:180], flush=True)
+              r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+              if r.returncode != 0:
+                  print('STDOUT tail:', (r.stdout or '')[-1200:])
+                  print('STDERR tail:', (r.stderr or '')[-1200:])
+                  raise RuntimeError(f'command failed ({r.returncode}): {cmd[0]} {cmd[1] if len(cmd) > 1 else ""}')
+              return r
+
+          def find(name):
+              hits = sorted(glob.glob(f'/kaggle/input/**/{name}', recursive=True), key=len)
+              if not hits:
+                  tops = sorted(os.listdir('/kaggle/input')) if os.path.isdir('/kaggle/input') else []
+                  raise FileNotFoundError(f'shelf file not found: {name}; /kaggle/input contains: {tops}')
+              p = hits[0]
+              print(f'  found {name}: {p} ({os.path.getsize(p)/1e9:.2f}GB)')
+              return p
+
+          def find_sdxl_dir():
+              for idx in sorted(glob.glob('/kaggle/input/**/model_index.json', recursive=True), key=len):
+                  d = os.path.dirname(idx)
+                  if os.path.isdir(os.path.join(d, 'unet')) and os.path.isdir(os.path.join(d, 'vae')):
+                      print('  SDXL tree (pre-extracted):', d)
+                      return d
+              tar = find('sdxl_base.tar')
+              dest = '/tmp/sdxl_tree'
+              os.makedirs(dest, exist_ok=True)
+              run(['tar', '-xf', tar, '-C', dest], timeout=1800)
+              for idx in sorted(glob.glob(dest + '/**/model_index.json', recursive=True), key=len):
+                  d = os.path.dirname(idx)
+                  if os.path.isdir(os.path.join(d, 'unet')):
+                      print('  SDXL tree (from tar):', d)
+                      return d
+              raise FileNotFoundError('sdxl_base.tar extracted but no diffusers tree inside')
+
+          FRAME_SRC = '''
+          import json, sys
+          import torch
+          from diffusers import AutoPipelineForText2Image
+          cfg = json.load(open(sys.argv[1]))
+          print('torch', torch.__version__, 'cuda', torch.cuda.is_available(),
+                torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cpu', flush=True)
+          pipe = AutoPipelineForText2Image.from_pretrained(
+              cfg['model_dir'], torch_dtype=torch.float16, variant='fp16', local_files_only=True)
+          pipe = pipe.to('cuda')
+          g = torch.Generator(device='cuda').manual_seed(cfg['seed'])
+          img = pipe(prompt=cfg['prompt'], negative_prompt=cfg['neg'],
+                     width=cfg['w'], height=cfg['h'], num_inference_steps=cfg['steps'],
+                     guidance_scale=cfg['cfg'], generator=g).images[0]
+          img.save(cfg['out'])
+          print('frame saved', cfg['out'], img.size,
+                'peakVRAM_GB', round(torch.cuda.max_memory_allocated()/1e9, 2), flush=True)
+          '''
+
+          def build_graph(gguf_name, vae_name, umt5_name, image_name):
+              p = PARAMS
+              return {
+                  '1': {'class_type': 'UnetLoaderGGUF',
+                        'inputs': {'unet_name': gguf_name}},
+                  '2': {'class_type': 'ModelSamplingSD3',
+                        'inputs': {'model': ['1', 0], 'shift': p['wan_shift']}},
+                  '3': {'class_type': 'CLIPLoader',
+                        'inputs': {'clip_name': umt5_name, 'type': 'wan'}},
+                  '4': {'class_type': 'CLIPTextEncode',
+                        'inputs': {'clip': ['3', 0], 'text': WAN_PROMPT}},
+                  '5': {'class_type': 'CLIPTextEncode',
+                        'inputs': {'clip': ['3', 0], 'text': NEG}},
+                  '6': {'class_type': 'VAELoader',
+                        'inputs': {'vae_name': vae_name}},
+                  '7': {'class_type': 'LoadImage',
+                        'inputs': {'image': image_name}},
+                  '8': {'class_type': 'Wan22ImageToVideoLatent',
+                        'inputs': {'vae': ['6', 0], 'width': p['width'], 'height': p['height'],
+                                   'length': p['length'], 'batch_size': 1,
+                                   'start_image': ['7', 0]}},
+                  '9': {'class_type': 'KSampler',
+                        'inputs': {'model': ['2', 0], 'seed': p['seed'], 'steps': p['wan_steps'],
+                                   'cfg': p['wan_cfg'], 'sampler_name': p['sampler'],
+                                   'scheduler': p['scheduler'], 'positive': ['4', 0],
+                                   'negative': ['5', 0], 'latent_image': ['8', 0],
+                                   'denoise': 1.0}},
+                  '10': {'class_type': 'VAEDecode',
+                         'inputs': {'samples': ['9', 0], 'vae': ['6', 0]}},
+                  '11': {'class_type': 'SaveImage',
+                         'inputs': {'images': ['10', 0], 'filename_prefix': 'scene_gate/frame'}},
+              }
+
+          def enum_of(oi, node, field):
+              try:
+                  return oi[node]['input']['required'][field][0]
+              except Exception:
+                  return []
+
+          def main():
+              os.makedirs(OUT, exist_ok=True)
+              with phase('discover_shelves'):
+                  gguf = find('Wan2.2-TI2V-5B-Q5_K_M.gguf')
+                  vae = find('wan2.2_vae.safetensors')
+                  umt5 = find('umt5_xxl_fp8_e4m3fn_scaled.safetensors')
+                  sdxl_dir = find_sdxl_dir()
+                  status['evidence']['shelf_files'] = {
+                      'gguf': gguf, 'vae': vae, 'umt5': umt5, 'sdxl_dir': sdxl_dir}
+              with phase('frame_sdxl'):
+                  run([sys.executable, '-m', 'pip', 'install', '-q', '--disable-pip-version-check',
+                       'diffusers==0.42.1', 'transformers==5.22.1', 'accelerate==1.15.0'], timeout=1800)
+                  cfg = {'model_dir': sdxl_dir, 'out': os.path.join(OUT, 'frame_01.png'),
+                         'prompt': FRAME_PROMPT, 'neg': NEG, 'seed': PARAMS['seed'],
+                         'w': PARAMS['width'], 'h': PARAMS['height'],
+                         'steps': PARAMS['frame_steps'], 'cfg': PARAMS['frame_cfg']}
+                  with open('/tmp/frame_cfg.json', 'w') as f:
+                      json.dump(cfg, f)
+                  with open('/tmp/frame_gen.py', 'w') as f:
+                      f.write(FRAME_SRC)
+                  run([sys.executable, '/tmp/frame_gen.py', '/tmp/frame_cfg.json'], timeout=1800)
+                  assert os.path.getsize(cfg['out']) > 50000, 'frame_01.png missing or tiny'
+              with phase('install_comfyui'):
+                  if not os.path.isdir(COMFY):
+                      run(['git', 'clone', 'https://github.com/Comfy-Org/ComfyUI', COMFY], timeout=1800)
+                  run(['git', '-C', COMFY, 'checkout', COMFY_SHA], timeout=600)
+                  gguf_dir = os.path.join(COMFY, 'custom_nodes', 'ComfyUI-GGUF')
+                  if not os.path.isdir(gguf_dir):
+                      run(['git', 'clone', 'https://github.com/city96/ComfyUI-GGUF', gguf_dir], timeout=1200)
+                  run(['git', '-C', gguf_dir, 'checkout', GGUF_SHA], timeout=300)
+                  run([sys.executable, '-m', 'pip', 'install', '-q', '--disable-pip-version-check',
+                       '-r', os.path.join(COMFY, 'requirements.txt')], timeout=2400)
+                  run([sys.executable, '-m', 'pip', 'install', '-q', '--disable-pip-version-check',
+                       'gguf==0.19.0'], timeout=900)
+                  for sub in ('unet', 'diffusion_models', 'vae', 'text_encoders', 'clip'):
+                      os.makedirs(os.path.join(COMFY, 'models', sub), exist_ok=True)
+                  links = [(gguf, 'unet'), (gguf, 'diffusion_models'), (vae, 'vae'),
+                           (umt5, 'text_encoders'), (umt5, 'clip')]
+                  for src, sub in links:
+                      dst = os.path.join(COMFY, 'models', sub, os.path.basename(src))
+                      if not os.path.exists(dst):
+                          os.symlink(src, dst)
+              with phase('wan_i2v'):
+                  logf = open('/tmp/comfy.log', 'w')
+                  srv = subprocess.Popen(
+                      [sys.executable, 'main.py', '--listen', '127.0.0.1', '--port', '8188'],
+                      cwd=COMFY, stdout=logf, stderr=subprocess.STDOUT)
+                  base = 'http://127.0.0.1:8188'
+                  try:
+                      ready = False
+                      for _ in range(120):
+                          if srv.poll() is not None:
+                              raise RuntimeError('ComfyUI exited: ' + open('/tmp/comfy.log').read()[-1500:])
+                          try:
+                              requests.get(base + '/system_stats', timeout=5).raise_for_status()
+                              ready = True
+                              break
+                          except Exception:
+                              time.sleep(2)
+                      assert ready, 'ComfyUI server never became ready'
+                      oi = requests.get(base + '/object_info', timeout=60).json()
+                      need = ['UnetLoaderGGUF', 'ModelSamplingSD3', 'CLIPLoader', 'CLIPTextEncode',
+                              'VAELoader', 'LoadImage', 'Wan22ImageToVideoLatent', 'KSampler',
+                              'VAEDecode', 'SaveImage']
+                      missing = [n for n in need if n not in oi]
+                      assert not missing, f'ComfyUI nodes missing: {missing}'
+                      assert os.path.basename(gguf) in enum_of(oi, 'UnetLoaderGGUF', 'unet_name'), \
+                          'gguf not visible to UnetLoaderGGUF: ' + str(enum_of(oi, 'UnetLoaderGGUF', 'unet_name'))[:400]
+                      assert os.path.basename(vae) in enum_of(oi, 'VAELoader', 'vae_name'), 'vae not visible'
+                      assert os.path.basename(umt5) in enum_of(oi, 'CLIPLoader', 'clip_name'), 'umt5 not visible'
+                      status['evidence']['object_info'] = 'all required nodes + model enums verified'
+                      with open(os.path.join(OUT, 'frame_01.png'), 'rb') as f:
+                          up = requests.post(base + '/upload/image', files={'image': f}, timeout=120).json()
+                      up_name = up['name']
+                      graph = build_graph(os.path.basename(gguf), os.path.basename(vae),
+                                          os.path.basename(umt5), up_name)
+                      resp = requests.post(base + '/prompt', json={'prompt': graph}, timeout=60).json()
+                      if resp.get('node_errors'):
+                          raise RuntimeError('graph node_errors: ' + json.dumps(resp['node_errors'])[:1500])
+                      pid = resp['prompt_id']
+                      print('prompt queued:', pid, flush=True)
+                      hist = None
+                      for _ in range(225):  # 75 minutes at 20s
+                          time.sleep(20)
+                          h = requests.get(f'{base}/history/{pid}', timeout=30).json()
+                          if pid in h:
+                              st = h[pid].get('status', {})
+                              if st.get('status_str') == 'error':
+                                  raise RuntimeError('ComfyUI execution error: ' +
+                                                     json.dumps(st.get('messages', []))[:1500])
+                              if st.get('completed'):
+                                  hist = h[pid]
+                                  break
+                      assert hist, 'ComfyUI prompt did not complete in 75 minutes'
+                      imgs = hist['outputs']['11']['images']
+                      frames = [os.path.join(COMFY, 'output', i.get('subfolder', ''), i['filename'])
+                                for i in imgs]
+                      frames = sorted(p for p in frames if os.path.isfile(p))
+                      status['evidence']['frames_rendered'] = len(frames)
+                      assert len(frames) >= 40, f'only {len(frames)} frames rendered'
+                  finally:
+                      srv.terminate()
+                      try:
+                          with open('/tmp/comfy.log') as f:
+                              status['evidence']['comfy_log_tail'] = f.read()[-1500:]
+                      except Exception:
+                          pass
+              with phase('assemble_evidence'):
+                  seq = '/tmp/frames'
+                  os.makedirs(seq, exist_ok=True)
+                  for i, p in enumerate(frames):
+                      shutil.copy2(p, os.path.join(seq, f'f{i:04d}.png'))
+                  clip = os.path.join(OUT, 'clip.mp4')
+                  run(['ffmpeg', '-y', '-framerate', str(PARAMS['fps']), '-i',
+                       os.path.join(seq, 'f%04d.png'), '-c:v', 'libx264', '-pix_fmt',
+                       'yuv420p', '-crf', '17', clip], timeout=900)
+                  pr = run(['ffprobe', '-v', 'error', '-show_entries',
+                            'stream=codec_name,width,height,avg_frame_rate',
+                            '-show_entries', 'format=duration,size',
+                            '-of', 'json', clip], timeout=120)
+                  status['evidence']['media'] = json.loads(pr.stdout)
+                  picks = [frames[int(i * (len(frames) - 1) / 5)] for i in range(6)]
+                  for i, p in enumerate(picks):
+                      shutil.copy2(p, os.path.join(OUT, f'still_{i+1}.png'))
+                  from PIL import Image
+                  tw, th = PARAMS['width'] // 2, PARAMS['height'] // 2
+                  sheet = Image.new('RGB', (tw * 3, th * 2), 'black')
+                  for i, p in enumerate(picks):
+                      sheet.paste(Image.open(p).resize((tw, th)), ((i % 3) * tw, (i // 3) * th))
+                  sheet.save(os.path.join(OUT, 'contact.jpg'), quality=88)
+                  assert os.path.getsize(clip) > 100000, 'clip.mp4 suspiciously small'
+              status['result'] = 'PASS'
+
+          try:
+              main()
+          except Exception:
+              status['result'] = 'FAIL'
+              status['traceback'] = traceback.format_exc()[-3000:]
+              print(status['traceback'], flush=True)
+          finally:
+              save_status()
+              try:
+                  shutil.copy2(os.path.join(WORK, 'scene_gate_status.json'),
+                               os.path.join(OUT, 'report.json'))
+              except Exception:
+                  pass
+              print('SCENE GATE RESULT:', status['result'], flush=True)
+          PY
+          python3 -m py_compile scene_gate/scene_gate.py
+          echo "kernel script bytes: $(wc -c < scene_gate/scene_gate.py)"
+
+      - name: Push scene gate kernel and wait for completion
+        run: |
+          set -uo pipefail
+          kaggle kernels push -p scene_gate --accelerator NvidiaTeslaT4
+          kernel_state="running"
+          for i in $(seq 1 115); do
+            out=$(kaggle kernels status "$KAGGLE_USERNAME/cine-engine-scene-gate" 2>&1 || true)
+            echo "[poll $i] $out"
+            case "$out" in
+              *complete*) kernel_state="complete"; echo "kernel complete"; break ;;
+              *error*|*Error*|*cancel*) kernel_state="error"; echo "kernel error/cancelled"; break ;;
+            esac
+            sleep 60
+          done
+          echo "KERNEL_STATE=$kernel_state" >> "$GITHUB_ENV"
+          if [ "$kernel_state" != "complete" ]; then
+            echo "::error::scene gate kernel did not complete (state: $kernel_state) — outputs (if any) still fetched"
+          fi
+
+      - name: Fetch gate output, verify evidence, write summary
+        if: always()
+        run: |
+          set -uo pipefail
+          mkdir -p scene_out
+          kaggle kernels output "$KAGGLE_USERNAME/cine-engine-scene-gate" -p scene_out || true
+          find scene_out -type f | sort | head -60
+          python3 - <<'PY'
+          import glob, json, os, sys
+          def find(name):
+              hits = sorted(glob.glob(f'scene_out/**/{name}', recursive=True))
+              return hits[0] if hits else None
+          clip, contact, frame, report = (find('clip.mp4'), find('contact.jpg'),
+                                          find('frame_01.png'), find('report.json'))
+          problems = []
+          if not clip or os.path.getsize(clip) < 100000:
+              problems.append(f'clip.mp4 missing/small: {clip}')
+          if not contact:
+              problems.append('contact.jpg missing')
+          if not frame:
+              problems.append('frame_01.png missing')
+          rep = None
+          if report:
+              try:
+                  rep = json.load(open(report))
+              except Exception as exc:
+                  problems.append(f'report.json unparseable: {exc}')
+          else:
+              problems.append('report.json missing')
+          if rep is not None:
+              print(json.dumps(rep, indent=2)[:6000])
+              if rep.get('result') != 'PASS':
+                  problems.append(f"kernel self-report result={rep.get('result')}")
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write("### Scene gate (run " + os.environ.get("GITHUB_RUN_ID", "?") + ")\n\n")
+              if rep is not None:
+                  f.write("```json\n" + json.dumps(rep, indent=2)[:6000] + "\n```\n")
+              else:
+                  f.write("_no report.json fetched — see step log and Kaggle kernel page._\n")
+          if problems:
+              for p in problems:
+                  print('::error::SCENE GATE EVIDENCE PROBLEM:', p)
+              sys.exit(1)
+          print('SCENE GATE TECHNICAL PASS — visual approval belongs to the owner')
+          PY
+
+      - name: Upload scene gate artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaggle-scene-gate-${{ github.run_id }}
+          path: scene_out/**
+          if-no-files-found: warn
