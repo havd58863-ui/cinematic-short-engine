@@ -1,4 +1,4 @@
-name: Gate — Scenes on Kaggle (SDXL frame + Wan GGUF clip)
+name: Gate — Scenes on Kaggle (reference frame + Wan I2V candidate)
 
 # SCENE GATE: the first consumer of the asset shelves (setup-kaggle-assets).
 # Pushes ONE private Kaggle GPU kernel that must prove, end to end and with
@@ -9,14 +9,11 @@ name: Gate — Scenes on Kaggle (SDXL frame + Wan GGUF clip)
 #   2) SDXL (shelf cine-assets-sdxl, tar or pre-extracted tree) renders one
 #      cinematic 768x1344 reference frame;
 #   3) native ComfyUI + ComfyUI-GGUF animates that frame with the shelf
-#      Wan2.2-TI2V-5B Q5_K_M GGUF + VAE + UMT5 fp8 into a real 33-frame clip
-#      at 576x1024 (template-true params: shift 8.0, 20 steps, cfg 5.0,
-#      uni_pc/simple; resolution/length sized to a 16GB T4, ledger E-015);
-#   4) evidence returns: clip.mp4, the source frame, 6 stills, a contact
-#      sheet and report.json (phases, timings, object_info proofs, sizes).
-# The gate PASSES only if the owner approves the look with his own eyes;
-# technical success alone does not open production. No secret ever enters
-# the kernel (public/ungated weights come from the private shelves).
+#      Wan2.2-TI2V-5B Q5_K_M GGUF + VAE + UMT5 fp8 into a 121-frame clip
+#      at 704x1280 (~5.04s) using the saved scene reference;
+#   4) returns clip.mp4, source frame, 6 stills, contact sheet, and a report.
+# A machine result is only CANDIDATE_READY; owner visual review is mandatory.
+# No secret ever enters the kernel (weights come from private Kaggle shelves).
 # Manual dispatch only.
 
 on:
@@ -28,7 +25,7 @@ permissions:
 jobs:
   gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: 75
     steps:
       - name: Check out repository (for the proven credential resolver)
         uses: actions/checkout@v4
@@ -94,8 +91,8 @@ jobs:
           }
           JSON
           cat > scene_gate/scene_gate.py <<'PY'
-          # Scene gate kernel: shelf discovery -> local staging -> SDXL frame ->
-          # ComfyUI/Wan I2V -> ffmpeg assembly -> evidence. Loud, named phases.
+          # Scene candidate: persistent shelf -> one local staging -> SDXL reference ->
+          # Wan I2V full-length clip -> technical QA/evidence. Human review remains required.
           import glob
           import json
           import os
@@ -111,28 +108,33 @@ jobs:
           OUT = os.path.join(WORK, 'out')
           LOCAL_MODELS = '/tmp/models'
           PARAMS = {
-              'width': 576, 'height': 1024, 'length': 33, 'fps': 24,
+              'width': 704, 'height': 1280, 'length': 121, 'fps': 24,
               'frame_w': 768, 'frame_h': 1344,
               'seed': 20261103, 'frame_steps': 28, 'frame_cfg': 6.5,
               'wan_steps': 20, 'wan_cfg': 5.0, 'wan_shift': 8.0,
-              'sampler': 'uni_pc', 'scheduler': 'simple',
+              'sampler': 'uni_pc', 'scheduler': 'simple', 'target_duration_seconds': 5.0,
           }
           FRAME_PROMPT = ('cinematic film still, a lone man seen from behind sitting on the edge '
                           'of an unmade bed in a dark room at 3am, head bowed, cold blue moonlight '
                           'through rain-streaked window blinds, a warm amber bedside lamp glowing at '
                           'the frame edge, dust particles drifting in the light beam, shallow depth '
                           'of field, moody teal and amber grade, photorealistic, detailed')
-          WAN_PROMPT = ('slow cinematic push-in toward the man as he slowly lowers his head into '
-                        'his hands, rain streaks running down the window glass, bands of moonlight '
-                        'through the blinds trembling subtly, dust drifting in the light beam, '
-                        'restrained realistic motion, photorealistic, stable identity')
+          WAN_PROMPT = ('single continuous locked shot, the man remains seated in the same pose, '
+                        'subtle natural breathing and a very slight lowering of the head, one small '
+                        'shoulder movement, rain trails slowly moving down the window, curtains barely '
+                        'shifting, dust drifting in the warm lamp beam, no pose change, no camera cut, '
+                        'photorealistic, preserve the exact person, clothing, room layout and lighting')
           NEG = ('low quality, blurry, deformed hands, extra fingers, distorted face, morphing, '
                  'identity change, flicker, jitter, watermark, text, cartoon, oversaturated, '
                  'bright daylight')
           COMFY_SHA = '70bcb4e9fc70f19b7cdb340966351ed6479f2188'
           GGUF_SHA = '6ea2651e7df66d7585f6ffee804b20e92fb38b8a'
           COMFY = '/tmp/ComfyUI'
-          status = {'result': 'RUNNING', 'phases': {}, 'params': PARAMS, 'evidence': {}}
+          status = {'result': 'RUNNING', 'workflow_run_id': 'RUN_ID_PLACEHOLDER',
+                    'started_at_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                    'manual_visual_review_required': True,
+                    'generation_mode': 'reference-conditioned Wan I2V',
+                    'phases': {}, 'params': PARAMS, 'evidence': {}}
 
           def save_status():
               try:
@@ -363,7 +365,7 @@ jobs:
                       pid = resp['prompt_id']
                       print('prompt queued:', pid, flush=True)
                       hist = None
-                      for tick in range(450):  # 150 minutes at 20s (ledger E-015)
+                      for tick in range(105):  # 35-minute hard ceiling; outer poll has margin
                           time.sleep(20)
                           h = requests.get(f'{base}/history/{pid}', timeout=30).json()
                           if pid in h:
@@ -383,15 +385,25 @@ jobs:
                                   save_status()
                               except Exception:
                                   pass
-                      assert hist, 'ComfyUI prompt did not complete in 150 minutes'
+                      assert hist, 'ComfyUI prompt did not complete within the 35-minute generation ceiling'
                       imgs = hist['outputs']['11']['images']
                       frames = [os.path.join(COMFY, 'output', i.get('subfolder', ''), i['filename'])
                                 for i in imgs]
                       frames = sorted(p for p in frames if os.path.isfile(p))
                       status['evidence']['frames_rendered'] = len(frames)
-                      assert len(frames) >= 30, f'only {len(frames)} frames rendered'
+                      assert len(frames) == PARAMS['length'], \
+                          f'{len(frames)} frames rendered; expected exactly {PARAMS["length"]}'
                   finally:
                       srv.terminate()
+                      try:
+                          srv.wait(timeout=30)
+                      except subprocess.TimeoutExpired:
+                          srv.kill()
+                          srv.wait(timeout=10)
+                      try:
+                          logf.close()
+                      except Exception:
+                          pass
                       try:
                           with open('/tmp/comfy.log') as f:
                               status['evidence']['comfy_log_tail'] = f.read()[-4000:]
@@ -421,8 +433,21 @@ jobs:
                   for i, p in enumerate(picks):
                       sheet.paste(Image.open(p).resize((tw, th)), ((i % 3) * tw, (i // 3) * th))
                   sheet.save(os.path.join(OUT, 'contact.jpg'), quality=88)
-                  assert os.path.getsize(clip) > 100000, 'clip.mp4 suspiciously small'
-              status['result'] = 'PASS'
+                  assert os.path.getsize(clip) > 200000, 'clip.mp4 suspiciously small'
+                  media = status['evidence']['media']
+                  stream = media['streams'][0] if media.get('streams') else {}
+                  duration = float(media.get('format', {}).get('duration', 0))
+                  assert duration >= PARAMS['target_duration_seconds'], \
+                         f'clip too short: {duration:.3f}s; need >={PARAMS["target_duration_seconds"]}s'
+                  assert stream.get('codec_name') == 'h264', \
+                         f'unexpected video codec: {stream.get("codec_name")}'
+                  assert (stream.get('width'), stream.get('height')) == \
+                         (PARAMS['width'], PARAMS['height']), \
+                         f'unexpected output dimensions: {stream.get("width")}x{stream.get("height")} '\
+                         f'expected {PARAMS["width"]}x{PARAMS["height"]}'
+                  assert stream.get('avg_frame_rate') == '24/1', \
+                         f'unexpected fps: {stream.get("avg_frame_rate")}'
+              status['result'] = 'CANDIDATE_READY'
 
           try:
               main()
@@ -431,6 +456,7 @@ jobs:
               status['traceback'] = traceback.format_exc()[-3000:]
               print(status['traceback'], flush=True)
           finally:
+              status['finished_at_utc'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
               save_status()
               try:
                   shutil.copy2(os.path.join(WORK, 'scene_gate_status.json'),
@@ -440,25 +466,82 @@ jobs:
               print('SCENE GATE RESULT:', status['result'], flush=True)
           PY
           python3 -m py_compile scene_gate/scene_gate.py
+          sed -i "s/RUN_ID_PLACEHOLDER/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/g" scene_gate/scene_gate.py
+          python3 -m py_compile scene_gate/scene_gate.py
           echo "kernel script bytes: $(wc -c < scene_gate/scene_gate.py)"
 
-      - name: Push scene gate kernel and wait for completion
+      - name: Push scene candidate and wait for its matching report
         run: |
-          set -uo pipefail
+          set -euo pipefail
+          kaggle kernels output --help >/dev/null
           kaggle kernels push -p scene_gate --accelerator NvidiaTeslaT4
           kernel_state="running"
-          for i in $(seq 1 170); do
+          report_ready="false"
+          seen_running="false"
+          mkdir -p scene_out
+          for i in $(seq 1 55); do
             out=$(kaggle kernels status "$KAGGLE_USERNAME/cine-engine-scene-gate" 2>&1 || true)
-            echo "[poll $i] $out"
-            case "$out" in
-              *complete*) kernel_state="complete"; echo "kernel complete"; break ;;
-              *error*|*Error*|*cancel*) kernel_state="error"; echo "kernel error/cancelled"; break ;;
-            esac
+            echo "[poll $i/55] $out"
+            terminal="false"
+            if printf '%s\n' "$out" | grep -Eqi 'has status "RUNNING"'; then
+              seen_running="true"
+              kernel_state="running"
+            elif printf '%s\n' "$out" | grep -Eqi 'has status "COMPLETE"'; then
+              if [ "$seen_running" = "true" ]; then
+                kernel_state="complete"
+                terminal="true"
+              else
+                echo "Ignoring pre-existing COMPLETE status until this run is observed."
+                kernel_state="running"
+              fi
+            elif printf '%s\n' "$out" | grep -Eqi 'has status "(ERROR|CANCELLED)"'; then
+              if [ "$seen_running" = "true" ]; then
+                kernel_state="error"
+                terminal="true"
+              else
+                echo "Ignoring pre-existing terminal status until this run is observed."
+                kernel_state="running"
+              fi
+            fi
+            # Kaggle may lag or leave RUNNING after the script wrote outputs.
+            # Fetch every five minutes and trust only this run ID in report.json.
+            if [ $((i % 5)) -eq 0 ] || [ "$terminal" = "true" ]; then
+              rm -rf scene_out/*
+              kaggle kernels output "$KAGGLE_USERNAME/cine-engine-scene-gate" -p scene_out || true
+              if python3 - <<'PY'
+          import glob, json, os, sys
+          want = os.environ.get('GITHUB_RUN_ID', '') + '-' + os.environ.get('GITHUB_RUN_ATTEMPT', '1')
+          hits = glob.glob('scene_out/**/report.json', recursive=True)
+          for path in hits:
+              try:
+                  with open(path) as f:
+                      report = json.load(f)
+                  if report.get('workflow_run_id') == want and report.get('result') in ('CANDIDATE_READY', 'FAIL'):
+                      print('matching final report found:', report.get('result'))
+                      sys.exit(0)
+              except Exception:
+                  pass
+          sys.exit(1)
+          PY
+              then
+                report_ready="true"
+                echo "Matching final report for run $GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT is ready."
+                break
+              fi
+            fi
+            if [ "$terminal" = "true" ]; then
+              echo "Kaggle reached this run's terminal state ($kernel_state) without a matching report; checking once more for output propagation."
+            fi
             sleep 60
           done
           echo "KERNEL_STATE=$kernel_state" >> "$GITHUB_ENV"
-          if [ "$kernel_state" != "complete" ]; then
-            echo "::error::scene gate kernel did not complete (state: $kernel_state) — outputs (if any) still fetched"
+          echo "REPORT_READY=$report_ready" >> "$GITHUB_ENV"
+          if [ "$report_ready" != "true" ]; then
+            echo "::error::No matching final report within 55 minutes; do not infer success from status or old outputs."
+          elif [ "$kernel_state" = "running" ]; then
+            echo "::warning::Kaggle status is still RUNNING, but a matching final report and media outputs were fetched."
+          elif [ "$kernel_state" = "error" ]; then
+            echo "::error::Kaggle reported a terminal error; output is not accepted as a candidate."
           fi
 
       - name: Fetch gate output, verify evidence, write summary
@@ -476,7 +559,7 @@ jobs:
           clip, contact, frame, report = (find('clip.mp4'), find('contact.jpg'),
                                           find('frame_01.png'), find('report.json'))
           problems = []
-          if not clip or os.path.getsize(clip) < 100000:
+          if not clip or os.path.getsize(clip) < 200000:
               problems.append(f'clip.mp4 missing/small: {clip}')
           if not contact:
               problems.append('contact.jpg missing')
@@ -490,21 +573,28 @@ jobs:
                   problems.append(f'report.json unparseable: {exc}')
           else:
               problems.append('report.json missing')
+          if os.environ.get('KERNEL_STATE') == 'error':
+              problems.append('Kaggle kernel ended in an error state')
           if rep is not None:
               print(json.dumps(rep, indent=2)[:6000])
-              if rep.get('result') != 'PASS':
+              expected_run_id = os.environ.get('GITHUB_RUN_ID', '') + '-' + os.environ.get('GITHUB_RUN_ATTEMPT', '1')
+              if rep.get('workflow_run_id') != expected_run_id:
+                  problems.append(f"stale/wrong report run_id={rep.get('workflow_run_id')!r}; expected {expected_run_id!r}")
+              if rep.get('result') != 'CANDIDATE_READY':
                   problems.append(f"kernel self-report result={rep.get('result')}")
+              if not rep.get('manual_visual_review_required'):
+                  problems.append('report does not require owner visual review')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
-              f.write("### Scene gate (run " + os.environ.get("GITHUB_RUN_ID", "?") + ")\n\n")
+              f.write("### Scene technical candidate — owner visual approval required (run " + os.environ.get("GITHUB_RUN_ID", "?") + ")\n\n")
               if rep is not None:
                   f.write("```json\n" + json.dumps(rep, indent=2)[:6000] + "\n```\n")
               else:
                   f.write("_no report.json fetched — see step log and Kaggle kernel page._\n")
           if problems:
               for p in problems:
-                  print('::error::SCENE GATE EVIDENCE PROBLEM:', p)
+                  print('::error::SCENE CANDIDATE EVIDENCE PROBLEM:', p)
               sys.exit(1)
-          print('SCENE GATE TECHNICAL PASS — visual approval belongs to the owner')
+          print('TECHNICAL CANDIDATE READY — NOT PRODUCTION-APPROVED; owner must review the full video')
           PY
 
       - name: Upload scene gate artifacts
