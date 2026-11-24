@@ -1,0 +1,19 @@
+# Account 02 — Cinematic Nostalgic Storytelling
+# Warmer, softer, more grain (storybook texture), gentle highlight bloom.
+name: cinematic_storytelling
+width: 1080
+height: 1920
+fps: 30
+contrast: 1.06
+saturation: 1.10
+gamma: 1.02
+brightness: 0.01
+warmth: 0.075
+shadow_tint_r: 0.02
+shadow_tint_b: 0.03
+clarity: 0.28
+grain: 8.0
+halation: 0.22
+halation_sigma: 30.0
+vignette: 0.30
+letterbox_ratio: null

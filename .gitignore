@@ -28,3 +28,6 @@ vendor/openmontage/
 *.wav
 *.mp3
 !assets/**/*.mp4
+
+# Local demo renders and generated plates
+demo/
