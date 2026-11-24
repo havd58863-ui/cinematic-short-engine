@@ -91,6 +91,22 @@ def test_generated_faces_allowed_when_policy_says_so() -> None:
     assert edl.shots[0].source is ShotSource.GENERATED
 
 
+def test_same_source_is_not_used_back_to_back() -> None:
+    clips = [
+        Clip(path="clips/a.mp4", source=ShotSource.STOCK, tags=["fog"], duration_seconds=6.0),
+        Clip(path="clips/a.mp4", source=ShotSource.STOCK, tags=["fog"], duration_seconds=6.0,
+             in_seconds=2.0),
+        Clip(path="clips/b.mp4", source=ShotSource.STOCK, tags=["fog"], duration_seconds=6.0),
+    ]
+    edl = allocate(
+        AccountId.PSYCHOLOGY, "demo", [beat(0, ["fog"]) for _ in range(3)], clips,
+        look="cinematic_psychology",
+    )
+    paths = [shot.path for shot in edl.shots]
+    assert len(paths) >= 2
+    assert all(a != b for a, b in zip(paths, paths[1:], strict=False))
+
+
 def test_empty_pool_is_an_error() -> None:
     with pytest.raises(ValueError):
         allocate(AccountId.PSYCHOLOGY, "demo", [beat(0, ["fog"])], [], look="x")

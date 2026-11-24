@@ -111,12 +111,20 @@ def main() -> int:
     parser.add_argument("--stock", type=pathlib.Path, nargs="*", default=[],
                         help="optional real footage files to mix in")
     parser.add_argument("--out", type=pathlib.Path, default=pathlib.Path("demo/out"))
+    parser.add_argument(
+        "--with-plates", action="store_true",
+        help="allow synthetic plates as filler when real footage runs out",
+    )
+    parser.add_argument(
+        "--account", choices=["psychology", "storytelling"], default="psychology",
+        help="which account look and identity to render",
+    )
     args = parser.parse_args()
 
     sources = pathlib.Path("demo/build/sources")
     pool: list[Clip] = []
 
-    plates = build_plates(sources)
+    plates = build_plates(sources) if args.with_plates else []
     tag_map = {
         "embers": ["embers", "light", "corridor"],
         "dust": ["fog", "water", "mist", "horizon", "dawn"],
@@ -148,12 +156,15 @@ def main() -> int:
 
     beats = build_beats()
     music = build_music_bed(sources / "music_bed.wav", 30.0)
+    account = (
+        AccountId.PSYCHOLOGY if args.account == "psychology" else AccountId.STORYTELLING
+    )
     edl = allocate(
-        AccountId.PSYCHOLOGY,
+        account,
         "The Loop",
         beats,
         pool,
-        look="cinematic_psychology",
+        look=f"cinematic_{args.account}",
         policy=SourcePolicy(max_share={"stock": 0.75, "generated": 0.2, "plate": 0.9, "title": 0.1}),
         audio=AudioPlan(music_path=str(music), music_gain_db=-20.0),
     )
@@ -171,7 +182,7 @@ def main() -> int:
     rhythm = analyze_edl(edl)
     motion = gate_shots([shot.path for shot in edl.shots], strict=True)
 
-    profile = load_look("config/looks/psychology.yaml")
+    profile = load_look(f"config/looks/{args.account}.yaml")
     result = render_edl(edl, profile, args.out)
 
     summary = {

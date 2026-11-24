@@ -89,6 +89,7 @@ def _pick(
     used: set[tuple[str, float]],
     allowed: dict[str, float],
     policy: SourcePolicy,
+    last_path: str | None = None,
 ) -> Clip | None:
     candidates = [clip for clip in pool if _clip_key(clip) not in used]
     if not policy.allow_generated_faces:
@@ -100,6 +101,8 @@ def _pick(
         clip for clip in candidates
         if clip.source.value in allowed or allowed.get(clip.source.value, 0) > 0
     ]
+    if last_path and len({clip.path for clip in candidates}) > 1:
+        candidates = [clip for clip in candidates if clip.path != last_path]
     if not candidates:
         return None
     # Real footage first: plates are filler, never the default.
@@ -132,9 +135,10 @@ def allocate(
     for index, seconds in enumerate(durations):
         beat = beats[min(len(beats) - 1, int(index * len(beats) / len(durations)))]
         allowed = {key: budget[key] - spent.get(key, 0.0) for key in budget}
-        clip = _pick(beat, pool, used, allowed, policy)
+        last_path = shots[-1].path if shots else None
+        clip = _pick(beat, pool, used, allowed, policy, last_path)
         if clip is None:
-            clip = _pick(beat, pool, used, {key: 1.0 for key in budget}, policy)
+            clip = _pick(beat, pool, used, {key: 1.0 for key in budget}, policy, last_path)
         if clip is None:
             break
 
