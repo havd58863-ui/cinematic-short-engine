@@ -107,6 +107,30 @@ def test_same_source_is_not_used_back_to_back() -> None:
     assert all(a != b for a, b in zip(paths, paths[1:], strict=False))
 
 
+def test_dark_clips_are_avoided_when_alternatives_exist() -> None:
+    clips = [
+        Clip(path="clips/dark.mp4", source=ShotSource.STOCK, tags=["fog"],
+             duration_seconds=6.0, mean_luma=0.04),
+        Clip(path="clips/lit.mp4", source=ShotSource.STOCK, tags=["fog"],
+             duration_seconds=6.0, mean_luma=0.42),
+    ]
+    edl = allocate(
+        AccountId.PSYCHOLOGY, "demo", [beat(0, ["fog"])], clips, look="cinematic_psychology",
+    )
+    assert edl.shots[0].path == "clips/lit.mp4"
+
+
+def test_dark_clip_is_used_when_it_is_all_that_exists() -> None:
+    clips = [
+        Clip(path="clips/dark.mp4", source=ShotSource.STOCK, tags=["fog"],
+             duration_seconds=6.0, mean_luma=0.04),
+    ]
+    edl = allocate(
+        AccountId.PSYCHOLOGY, "demo", [beat(0, ["fog"])], clips, look="cinematic_psychology",
+    )
+    assert edl.shots[0].path == "clips/dark.mp4"
+
+
 def test_empty_pool_is_an_error() -> None:
     with pytest.raises(ValueError):
         allocate(AccountId.PSYCHOLOGY, "demo", [beat(0, ["fog"])], [], look="x")

@@ -6,6 +6,7 @@ import pytest
 
 from engine.edit.look import (
     LookProfile,
+    expose_chain,
     grade_chain,
     load_look,
     master_filter,
@@ -51,12 +52,33 @@ def test_grain_and_vignette_can_be_disabled() -> None:
     assert "blend=" not in chain
 
 
-def test_shot_filter_fades_inside_short_clips() -> None:
-    profile = LookProfile(name="t")
-    chain = shot_filter(profile, duration=1.6)
-    assert "fade=t=in" in chain
+def test_cuts_are_hard_by_default() -> None:
+    chain = shot_filter(LookProfile(name="t"), duration=1.6)
+    assert "fade=" not in chain
+
+
+def test_shot_fade_is_opt_in_and_fits_the_clip() -> None:
+    chain = shot_filter(LookProfile(name="t", shot_fade=0.4), duration=1.6)
     out_at = [part for part in chain.split(",") if part.startswith("fade=t=out")][0]
-    assert "st=1.4" in out_at
+    assert "st=1.2" in out_at
+
+
+def test_exposure_matching_lifts_dark_shots() -> None:
+    profile = LookProfile(name="t", target_luma=0.40)
+    assert expose_chain(profile, 0.15).startswith("eq=brightness=0.2")
+    assert expose_chain(profile, 0.80).startswith("eq=brightness=-0.3")
+    assert expose_chain(profile, 0.40) == ""
+
+
+def test_exposure_matching_can_be_disabled() -> None:
+    profile = LookProfile(name="t", auto_expose=False)
+    assert expose_chain(profile, 0.10) == ""
+
+
+def test_shot_filter_uses_measured_luma() -> None:
+    profile = LookProfile(name="t", target_luma=0.40)
+    assert "brightness=" in shot_filter(profile, 2.0, mean_luma=0.10)
+    assert "eq=brightness" not in shot_filter(profile, 2.0)
 
 
 def test_letterbox_keeps_vertical_master() -> None:

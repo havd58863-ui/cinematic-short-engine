@@ -19,8 +19,9 @@ from engine.contracts import AccountId
 from engine.director.allocate import Beat, Clip, SourcePolicy, allocate
 from engine.edit.edl import AudioPlan, ShotSource
 from engine.edit.look import load_look
-from engine.edit.render import render_edl
+from engine.edit.render import measure_luma, render_edl
 from engine.edit.subtitles import SubtitleStyle, cues_from_edl, write_ass
+from engine.qa.exposure_gate import gate as exposure_gate
 from engine.qa.motion_gate import gate_shots
 from engine.qa.rhythm_gate import analyze_edl
 
@@ -144,13 +145,15 @@ def main() -> int:
         if not stock_file.exists():
             continue
         for index in range(4):
+            in_seconds = float(index) * 2.2
             pool.append(
                 Clip(
                     path=str(stock_file),
                     source=ShotSource.STOCK,
                     tags=["room", "silhouette", "hand", "door", "horizon"],
                     duration_seconds=4.0,
-                    in_seconds=float(index) * 2.2,
+                    in_seconds=in_seconds,
+                    mean_luma=measure_luma(stock_file, in_seconds, 2.0),
                 )
             )
 
@@ -185,6 +188,8 @@ def main() -> int:
     profile = load_look(f"config/looks/{args.account}.yaml")
     result = render_edl(edl, profile, args.out)
 
+    exposure = exposure_gate([result.master])
+
     summary = {
         "shot_count": len(edl.shots),
         "duration_seconds": edl.duration_seconds(),
@@ -201,6 +206,10 @@ def main() -> int:
                  "verdict": report_dict["verdict"]}
                 for report_dict in motion["reports"]
             ],
+        },
+        "exposure_gate": {
+            "ok": exposure["ok"],
+            "failures": exposure["failures"],
         },
         "files": {"master": str(result.master), "preview": str(result.preview)},
     }

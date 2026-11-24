@@ -32,6 +32,7 @@ class Clip(StrictModel):
     in_seconds: float = Field(default=0.0, ge=0.0)
     credit: str | None = None
     contains_face: bool = False
+    mean_luma: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class SourcePolicy(StrictModel):
@@ -44,6 +45,8 @@ class SourcePolicy(StrictModel):
     max_shot_seconds: float = Field(default=3.6, ge=1.0, le=6.0)
     hook_max_seconds: float = Field(default=2.0, ge=0.5, le=4.0)
     allow_generated_faces: bool = False
+    min_luma: float | None = Field(default=0.16, ge=0.0, le=1.0)
+    max_luma: float | None = Field(default=0.80, ge=0.0, le=1.0)
 
 
 SOURCE_PRIORITY: dict[ShotSource, int] = {
@@ -103,6 +106,16 @@ def _pick(
     ]
     if last_path and len({clip.path for clip in candidates}) > 1:
         candidates = [clip for clip in candidates if clip.path != last_path]
+    usable = [
+        clip for clip in candidates
+        if clip.mean_luma is None
+        or (
+            (policy.min_luma is None or clip.mean_luma >= policy.min_luma)
+            and (policy.max_luma is None or clip.mean_luma <= policy.max_luma)
+        )
+    ]
+    if usable:
+        candidates = usable
     if not candidates:
         return None
     # Real footage first: plates are filler, never the default.

@@ -35,6 +35,9 @@ class LookProfile(StrictModel):
     shadow_tint_r: float = Field(default=-0.03, ge=-0.3, le=0.3)
     shadow_tint_b: float = Field(default=0.04, ge=-0.3, le=0.3)
     clarity: float = Field(default=0.35, ge=0.0, le=2.0)
+    auto_expose: bool = True
+    shot_fade: float = Field(default=0.0, ge=0.0, le=1.0)
+    target_luma: float = Field(default=0.40, ge=0.15, le=0.75)
 
     grain: float = Field(default=5.0, ge=0.0, le=40.0)
     halation: float = Field(default=0.14, ge=0.0, le=1.0)
@@ -131,18 +134,35 @@ def grade_chain(profile: LookProfile, stage: Stage = "shot") -> str:
     return ",".join(chain)
 
 
+def expose_chain(profile: LookProfile, mean_luma: float | None) -> str:
+    """Lift or drop one shot toward the account's target exposure.
+
+    Mixed sources arrive at wildly different levels; matching them per shot is
+    what stops a cut from reading as "different video, same channel".
+    """
+    if not profile.auto_expose or mean_luma is None:
+        return ""
+    delta = max(-0.35, min(0.35, (profile.target_luma - mean_luma) * 0.9))
+    if abs(delta) < 0.02:
+        return ""
+    return f"eq=brightness={_n(delta)}"
+
+
 def shot_filter(
     profile: LookProfile,
     duration: float,
     letterbox: bool = False,
     source_crop: str | None = None,
+    mean_luma: float | None = None,
 ) -> str:
-    """Full per-shot filter: normalise, grade, and fade the edges of the clip."""
+    """Full per-shot filter: normalise, expose-match, grade, fade the edges."""
     chain = [
         normalize_chain(profile, letterbox=letterbox, source_crop=source_crop),
+        expose_chain(profile, mean_luma),
         grade_chain(profile, "shot"),
     ]
-    fade = min(0.25, max(0.0, duration / 8))
+    chain = [part for part in chain if part]
+    fade = min(profile.shot_fade, max(0.0, duration / 4))
     if fade > 0:
         chain.append(f"fade=t=in:st=0:d={_n(fade)}")
         chain.append(f"fade=t=out:st={_n(max(0.0, duration - fade))}:d={_n(fade)}")

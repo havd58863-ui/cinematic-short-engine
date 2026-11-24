@@ -87,16 +87,34 @@ def detect_content_crop(path: str | pathlib.Path, seconds: float = 1.0, limit: i
     return matches[-1]
 
 
+def measure_luma(path: str | pathlib.Path, at: float = 0.0, seconds: float = 1.0) -> float | None:
+    """Mean luma (0..1) of a clip window, used for per-shot exposure matching."""
+    proc = subprocess.run(
+        [
+            ffmpeg_bin(), "-nostdin", "-hide_banner", "-ss", f"{max(0.0, at):.3f}",
+            "-t", f"{seconds:.2f}", "-i", str(path),
+            "-vf", "signalstats,metadata=print:key=lavfi.signalstats.YAVG",
+            "-f", "null", "-",
+        ],
+        capture_output=True, text=True,
+    )
+    values = [float(v) for v in re.findall(r"lavfi\.signalstats\.YAVG=([0-9.]+)", proc.stderr or "")]
+    if not values:
+        return None
+    return sum(values) / len(values) / 255.0
+
+
 def render_shot(
     shot,
     profile: LookProfile,
     out_path: pathlib.Path,
     letterbox: bool = False,
     source_crop: str | None = None,
+    mean_luma: float | None = None,
 ) -> None:
     chain = shot_filter(
         profile, shot.duration_seconds / max(shot.speed, 0.01),
-        letterbox=letterbox, source_crop=source_crop,
+        letterbox=letterbox, source_crop=source_crop, mean_luma=mean_luma,
     )
     args = [
         ffmpeg_bin(), "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
@@ -251,14 +269,18 @@ def render_edl(
     work.mkdir(parents=True, exist_ok=True)
 
     crops: dict[str, str | None] = {}
+    lumas: dict[tuple[str, float], float | None] = {}
     rendered: list[pathlib.Path] = []
     for position, shot in enumerate(edl.shots):
         if shot.path not in crops:
             crops[shot.path] = detect_content_crop(shot.path)
+        window = (shot.path, round(shot.start_seconds, 1))
+        if window not in lumas:
+            lumas[window] = measure_luma(shot.path, shot.start_seconds, shot.duration_seconds)
         target = shots_dir / f"{position:02d}_{shot.id}.mp4"
         render_shot(
             shot, profile, target,
-            letterbox=letterbox, source_crop=crops[shot.path],
+            letterbox=letterbox, source_crop=crops[shot.path], mean_luma=lumas[window],
         )
         rendered.append(target)
 
