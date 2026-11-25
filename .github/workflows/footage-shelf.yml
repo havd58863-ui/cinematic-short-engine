@@ -9,6 +9,9 @@ on:
       tag:
         description: Release tag to publish the shelf under
         default: footage-v1
+  push:
+    branches: [feat/cinematic-render-pipeline]
+    paths: [config/footage_catalog.yaml, scripts/fetch_footage_shelf.py]
 
 permissions:
   contents: write
@@ -37,6 +40,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="${{ inputs.tag }}"
+          tag="${{ inputs.tag || 'footage-v1' }}"
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Footage shelf" --notes "Verified Wikimedia Commons clips used by the demo renders. Credits in manifest.json."
           gh release upload "$tag" shelf/*.webm shelf/*.mp4 shelf/manifest.json --clobber
