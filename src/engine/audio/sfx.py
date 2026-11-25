@@ -39,7 +39,9 @@ def _band(signal: np.ndarray, low: float, high: float) -> np.ndarray:
     return np.fft.irfft(spectrum * mask, n=signal.size)
 
 
-def _swept_noise(seconds: float, low: float, high: float, rng: np.random.Generator, blocks: int = 28) -> np.ndarray:
+def _swept_noise(
+    seconds: float, low: float, high: float, rng: np.random.Generator, blocks: int = 28
+) -> np.ndarray:
     total = int(seconds * SAMPLE_RATE)
     out = np.zeros(total)
     block = max(1, total // blocks)

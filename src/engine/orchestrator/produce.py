@@ -19,7 +19,8 @@ from engine.audio.music import Mood, compose
 from engine.audio.polish import polish_voice
 from engine.audio.sfx import SfxEvent, compose_bed
 from engine.audio.tts import probe_duration, synthesize
-from engine.brain.script import assert_valid, beats as script_beats, load
+from engine.brain.script import assert_valid, load
+from engine.brain.script import beats as script_beats
 from engine.contracts import AccountId
 from engine.director.allocate import Beat, SourcePolicy
 from engine.edit.edl import EDL, AudioPlan
@@ -49,7 +50,10 @@ class ProduceResult:
     report: dict[str, object]
 
 
-CONJUNCTIONS = ("and ", "but ", "because ", "so ", "yet ", "or ", "which ", "that ", "where ", "when ", "while ", "as ", "then ")
+CONJUNCTIONS = (
+    "and ", "but ", "because ", "so ", "yet ", "or ", "which ",
+    "that ", "where ", "when ", "while ", "as ", "then ",
+)
 
 
 def _split(text: str, limit_words: int = 24) -> list[str]:
@@ -137,7 +141,7 @@ def _mood(config_dir: pathlib.Path, name: str) -> Mood:
 
 def _sfx_events(spans: list[tuple[float, float, str]], total: float) -> list[SfxEvent]:
     events: list[SfxEvent] = [SfxEvent("riser", 0.0, -26.0)]
-    for index, (start, duration, field) in enumerate(spans):
+    for index, (start, _duration, field) in enumerate(spans):
         if index:
             events.append(SfxEvent("whoosh", max(0.0, start - 0.28), -24.0))
         if field in {"realization", "emotional_turn", "discovery"}:
@@ -221,7 +225,8 @@ def produce(
     )
 
     beat_audio: list[BeatAudio] = []
-    for unit_index, ((piece, visual, beat), (_, words, duration)) in enumerate(zip(units, segments, strict=True)):
+    pairs = zip(units, segments, strict=True)
+    for unit_index, ((piece, visual, beat), (_, words, duration)) in enumerate(pairs):
         beat_audio.append(
             BeatAudio(
                 beat=Beat(
@@ -288,7 +293,12 @@ def produce(
         "rhythm_gate": rhythm.as_dict(),
         "exposure_gate": exposure,
         "clips": [
-            {"path": pathlib.Path(clip.path).name, "tags": clip.tags, "luma": clip.mean_luma, "credit": clip.credit}
+            {
+                "path": pathlib.Path(clip.path).name,
+                "tags": clip.tags,
+                "luma": clip.mean_luma,
+                "credit": clip.credit,
+            }
             for clip in clips
         ],
         "files": {"master": str(result.master), "preview": str(result.preview), "captions": str(subtitle)},

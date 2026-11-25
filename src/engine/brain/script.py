@@ -56,13 +56,17 @@ def build_spec(config: dict, account: AccountId) -> ScriptConstraints:
     )
 
 
-def validate(script: dict, account: AccountId, config_dir: str | pathlib.Path | None = None) -> ValidationReport:
+def validate(
+    script: dict, account: AccountId, config_dir: str | pathlib.Path | None = None
+) -> ValidationReport:
     root = pathlib.Path(config_dir) if config_dir else pathlib.Path("config")
     config = yaml.safe_load((root / "writing_gate.yaml").read_text(encoding="utf-8"))
     return validate_script(script, build_spec(config, account))
 
 
-def assert_valid(script: dict, account: AccountId, config_dir: str | pathlib.Path | None = None) -> ValidationReport:
+def assert_valid(
+    script: dict, account: AccountId, config_dir: str | pathlib.Path | None = None
+) -> ValidationReport:
     report = validate(script, account, config_dir)
     if report.status.value != "passed_validation":
         failures = ", ".join(sorted({issue.code.value for issue in report.issues}))

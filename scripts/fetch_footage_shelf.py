@@ -11,7 +11,6 @@ import json
 import pathlib
 import re
 import subprocess
-import sys
 import time
 
 import httpx

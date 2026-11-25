@@ -143,7 +143,8 @@ def search_wikimedia(query: str, *, limit: int = 4) -> list[Candidate]:
         if int(info.get("size", 0)) > MAX_BYTES:
             continue
         meta = info.get("extmetadata", {})
-        artist = re.sub("<[^>]+>", "", meta.get("Artist", {}).get("value", "")).strip() or "Wikimedia contributor"
+        raw_artist = re.sub("<[^>]+>", "", meta.get("Artist", {}).get("value", "")).strip()
+        artist = raw_artist or "Wikimedia contributor"
         licence = meta.get("LicenseShortName", {}).get("value", "CC")
         found.append(
             Candidate(
