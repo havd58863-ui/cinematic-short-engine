@@ -2,7 +2,7 @@ PYTHON ?= python3
 VENV ?= .venv
 UV_CACHE_DIR ?= .cache/uv
 
-.PHONY: setup test lint doctor validate fetch-openmontage locks
+.PHONY: setup test lint doctor validate fetch-openmontage locks render-demo
 
 setup:
 	uv venv $(VENV) --python 3.12
@@ -20,6 +20,9 @@ doctor:
 validate:
 	PYTHONPATH=src $(VENV)/bin/python -m engine.cli validate-config --json
 	PYTHONPATH=src $(VENV)/bin/python -m engine.cli validate-toolchain --json
+
+render-demo:
+	PYTHONPATH=src $(VENV)/bin/python scripts/demo_pipeline.py --out demo/out
 
 fetch-openmontage:
 	$(PYTHON) scripts/fetch_openmontage.py
