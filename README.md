@@ -51,3 +51,15 @@ make fetch-openmontage
 ## الأسرار
 
 لا تضع أي مفتاح داخل ملف في المستودع. القيم الحقيقية تُوضع في GitHub Secrets أو ملف `.env` محلي غير ملتزم. أمر `doctor` يطبع وجود السر فقط ولا يطبع قيمته.
+
+## Rendering a video
+
+```bash
+make produce SCRIPT=content/psychology/ep01_reread_messages.json OUT=out/psychology
+```
+
+The pipeline synthesises the narration first, cuts each shot to the length of
+its spoken sentence, scores a mood-matched bed, places sound design on the cut
+points, fills captions word by word from the same timestamps, then mixes to
+-14 LUFS. `docs/PRODUCTION_PIPELINE.md` documents every stage and the file that
+controls it.

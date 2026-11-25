@@ -2,7 +2,7 @@ PYTHON ?= python3
 VENV ?= .venv
 UV_CACHE_DIR ?= .cache/uv
 
-.PHONY: setup test lint doctor validate fetch-openmontage locks render-demo
+.PHONY: setup test lint doctor validate fetch-openmontage locks render-demo produce
 
 setup:
 	uv venv $(VENV) --python 3.12
@@ -23,6 +23,11 @@ validate:
 
 render-demo:
 	PYTHONPATH=src $(VENV)/bin/python scripts/demo_pipeline.py --out demo/out
+
+SCRIPT ?= content/psychology/ep01_reread_messages.json
+OUT ?= out/episode
+produce:
+	PYTHONPATH=src $(VENV)/bin/python -m engine.cli produce $(SCRIPT) --out $(OUT) --json
 
 fetch-openmontage:
 	$(PYTHON) scripts/fetch_openmontage.py
