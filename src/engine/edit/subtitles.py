@@ -28,6 +28,8 @@ class SubtitleStyle(StrictModel):
     max_lines: int = Field(default=3, ge=1, le=5)
     fade_ms: int = Field(default=180, ge=0, le=1000)
     uppercase: bool = False
+    sung_colour: str = "&H00FFFFFF"
+    unsung_colour: str = "&H00A8A8A8"
 
 
 @dataclass
@@ -35,6 +37,7 @@ class Cue:
     start: float
     end: float
     text: str
+    raw: bool = False
 
 
 def _timestamp(seconds: float) -> str:
@@ -94,7 +97,7 @@ def build_ass(cues: list[Cue], style: SubtitleStyle, play_res: tuple[int, int]) 
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,"
         " BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle,"
         " BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-        f"Style: Main,{style.font},{style.size},{style.primary_colour},&H000000FF,"
+        f"Style: Main,{style.font},{style.size},{style.sung_colour},{style.unsung_colour},"
         f"{style.outline_colour},&H80000000,0,0,0,0,100,100,1,0,1,"
         f"{style.outline:g},{style.shadow:g},2,90,90,{style.margin_v},1",
         "",
@@ -104,7 +107,7 @@ def build_ass(cues: list[Cue], style: SubtitleStyle, play_res: tuple[int, int]) 
     events: list[str] = []
     for cue in cues:
         text = cue.text.upper() if style.uppercase else cue.text
-        wrapped = wrap(_escape(text), style.max_chars_per_line, style.max_lines)
+        wrapped = text if cue.raw else wrap(_escape(text), style.max_chars_per_line, style.max_lines)
         effect = f"{{\\fad({style.fade_ms},{style.fade_ms})}}" if style.fade_ms else ""
         events.append(
             f"Dialogue: 0,{_timestamp(cue.start)},{_timestamp(cue.end)},Main,,0,0,0,,{effect}{wrapped}"
@@ -122,3 +125,33 @@ def write_ass(
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(build_ass(cues, style, play_res), encoding="utf-8")
     return target
+
+
+def karaoke_cues(
+    words: list[tuple[str, float, float]],
+    *,
+    max_words: int = 3,
+    tail: float = 0.18,
+) -> list[Cue]:
+    """Group timed words into short cues that fill word by word as they are spoken."""
+    cues: list[Cue] = []
+    chunk: list[tuple[str, float, float]] = []
+    for word in words:
+        chunk.append(word)
+        if len(chunk) >= max_words:
+            cues.append(_karaoke_cue(chunk, tail))
+            chunk = []
+    if chunk:
+        cues.append(_karaoke_cue(chunk, tail))
+    return cues
+
+
+def _karaoke_cue(chunk: list[tuple[str, float, float]], tail: float) -> Cue:
+    start = chunk[0][1]
+    end = chunk[-1][2] + tail
+    parts: list[str] = []
+    for position, (text, word_start, word_end) in enumerate(chunk):
+        centiseconds = max(1, round((word_end - word_start) * 100))
+        spacer = "" if position == len(chunk) - 1 else " "
+        parts.append(f"{{\\kf{centiseconds}}}{_escape(text.upper())}{spacer}")
+    return Cue(start=round(start, 3), end=round(end, 3), text="".join(parts), raw=True)

@@ -1,0 +1,95 @@
+{
+  "account": "account_01_psychology",
+  "title": "Why You Still Reread Messages From Someone Who Left",
+  "hook": "You still reread messages from someone who left.",
+  "curiosity": "It is late, and your thumb is moving through a conversation that ended months ago. You already know how it ends. You have read it before. Yet something in you keeps returning to the line where everything changed, as if the words might settle differently tonight.",
+  "psychological_mechanism": "When someone leaves without a clean ending, your mind is left holding an unfinished story, and an unfinished story keeps pulling attention back to it. The messages become the only place where the ending might still be written. Each time you reread them, you are not looking for information. You are looking for a version of events where you were not the reason. That search feels like sadness, but it is your mind trying to close a loop it was never allowed to close.",
+  "realization": "The cruel part is that rereading gives you a small hit of relief every time, and that relief keeps the loop alive. You are not weak for going back. You are responding to a story cut off mid-sentence. But the ending you are searching for is not in that thread. It was never written there, and no amount of reading will add it.",
+  "final_line": "You are not addicted to the message. You are hungry for the ending.",
+  "hook_family": "second_person_recognition",
+  "visual_metaphor": "A lit screen in a dark room, an ocean returning to the same rock",
+  "tone": {
+    "mood": "controlled_tension",
+    "voice": "en-US-AndrewNeural",
+    "rate": "-6%"
+  },
+  "beats": [
+    {
+      "field": "hook",
+      "why": "Names the private habit in one sentence so the viewer recognises themselves before any explanation.",
+      "visual": "rain on a window at night",
+      "tags": [
+        "rain",
+        "night",
+        "window"
+      ],
+      "visuals": [
+        "rain_window"
+      ]
+    },
+    {
+      "field": "curiosity",
+      "why": "Puts the viewer inside the moment of scrolling, so the tension is physical rather than abstract.",
+      "visual": "waves crashing on dark rocks",
+      "tags": [
+        "waves",
+        "ocean",
+        "rocks"
+      ],
+      "visuals": [
+        "rain_window",
+        "city_night",
+        "city_night",
+        "moon_sea"
+      ]
+    },
+    {
+      "field": "psychological_mechanism",
+      "why": "Explains the unfinished-loop mechanism while the image keeps returning to the same place.",
+      "visual": "ocean waves returning to shore",
+      "tags": [
+        "waves",
+        "ocean",
+        "shore"
+      ],
+      "visuals": [
+        "ocean_rocks",
+        "ocean_rocks",
+        "storm_lightning",
+        "fog_lake",
+        "moon_sea"
+      ]
+    },
+    {
+      "field": "realization",
+      "why": "Turns the explanation inward, so the insight lands as self-recognition rather than a lecture.",
+      "visual": "fog moving through a forest",
+      "tags": [
+        "fog",
+        "forest",
+        "trees"
+      ],
+      "visuals": [
+        "candle",
+        "city_night",
+        "fog_lake",
+        "ocean_rocks",
+        "sunrise_sea"
+      ]
+    },
+    {
+      "field": "final_line",
+      "why": "Leaves a single sentence the viewer can carry, with an image that resolves into stillness.",
+      "visual": "sunrise over calm sea",
+      "tags": [
+        "sunrise",
+        "sea",
+        "calm"
+      ],
+      "visuals": [
+        "candle",
+        "sunrise_sea"
+      ]
+    }
+  ]
+}
