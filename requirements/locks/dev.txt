@@ -178,11 +178,15 @@ nltk==3.10.3
     # via textstat
 numpy==2.5.4
     # via
+    #   cinematic-short-engine (pyproject.toml)
+    #   opencv-python-headless
     #   pandas
     #   trendspy
 oauthlib==4.0.0
     # via requests-oauthlib
 ollama==0.6.3
+    # via cinematic-short-engine (pyproject.toml)
+opencv-python-headless==5.1.0.95
     # via cinematic-short-engine (pyproject.toml)
 opentelemetry-api==1.45.1
     # via
