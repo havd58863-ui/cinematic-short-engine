@@ -18,6 +18,22 @@
 - OpenMontage مثبت عند Commit دقيق في `vendor/openmontage.lock.json` ويُجلب آليًا بلا نسخ 161MB داخل تاريخ Git.
 - الاعتماديات مقسمة لصور/بيئات متخصصة؛ التثبيت يتم عند بناء الصور مرة واحدة، ثم تعمل الإنتاجات من أقفال دقيقة.
 
+## محرك الفيديو
+
+`src/engine/edit`, `src/engine/qa`, `src/engine/director` تُنتج فيديو حقيقياً: EDL مُتحقّق، تدرّج لوني واحد لكل حساب، رندر FFmpeg، كابشن ASS محروق، وميكس صوت مُعاير على -14 LUFS.
+
+القاعدة الحاكمة — لا صورة ثابتة مُحرَّكة — مطبّقة كاختبار في `qa/motion_gate.py`: يُقدَّر تحويل صلب بين الإطارات وتُقاس البقايا، فتُرفض لقطة Ken Burns باسم `rigid-only` وتُرفض اللقطة المجمّدة باسم `frozen`.
+
+```bash
+make render-demo        # ينشئ demo/out/master.mp4 و preview.mp4
+```
+
+المخرجات: `master.mp4` (1080x1920 للتسليم)، `preview.mp4` (تحت حد تيليجرام)، `manifest.json` (مصدر كل لقطة)، `demo_report.json` (قياسات البوابات).
+
+- المعمارية ودلالة البوابات: `docs/cinematic-pipeline.md`
+- تقييم الجاهزية للإنتاج: `docs/PRODUCTION_READINESS_AR.md`
+- نموذج مُصدَّر: وسم `demo-v0.1` في صفحة Releases
+
 ## التحقق المحلي للأساس
 
 ```bash
@@ -35,3 +51,15 @@ make fetch-openmontage
 ## الأسرار
 
 لا تضع أي مفتاح داخل ملف في المستودع. القيم الحقيقية تُوضع في GitHub Secrets أو ملف `.env` محلي غير ملتزم. أمر `doctor` يطبع وجود السر فقط ولا يطبع قيمته.
+
+## Rendering a video
+
+```bash
+make produce SCRIPT=content/psychology/ep01_reread_messages.json OUT=out/psychology
+```
+
+The pipeline synthesises the narration first, cuts each shot to the length of
+its spoken sentence, scores a mood-matched bed, places sound design on the cut
+points, fills captions word by word from the same timestamps, then mixes to
+-14 LUFS. `docs/PRODUCTION_PIPELINE.md` documents every stage and the file that
+controls it.

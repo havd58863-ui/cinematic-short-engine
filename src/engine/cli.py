@@ -36,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     accounts = sub.add_parser("accounts", help="List configured accounts")
     accounts.add_argument("--json", action="store_true")
+
+    produce = sub.add_parser("produce", help="Render a scripted video end to end")
+    produce.add_argument("script", type=pathlib.Path)
+    produce.add_argument("--out", type=pathlib.Path, default=pathlib.Path("out"))
+    produce.add_argument("--json", action="store_true")
     return parser
 
 
@@ -52,6 +57,21 @@ def main(argv: list[str] | None = None) -> int:
             result = {
                 account_id: load_account(account_id, args.config_dir)["name"]
                 for account_id in list_accounts(args.config_dir)
+            }
+        elif args.command == "produce":
+            from engine.orchestrator.produce import produce as run_produce
+
+            rendered = run_produce(args.script, args.out, config_dir=args.config_dir or "config")
+            result = {
+                "master": str(rendered.master),
+                "preview": str(rendered.preview),
+                "duration_seconds": rendered.report["duration_seconds"],
+                "shots": rendered.report["shot_count"],
+                "gates": {
+                    "motion": rendered.report["motion_gate"].get("ok"),
+                    "rhythm": rendered.report["rhythm_gate"].get("passed"),
+                    "exposure": rendered.report["exposure_gate"].get("ok"),
+                },
             }
         else:  # pragma: no cover - argparse enforces the commands above
             raise AssertionError(args.command)

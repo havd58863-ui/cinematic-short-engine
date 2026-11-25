@@ -1,0 +1,19 @@
+# Account 01 — Cinematic Psychology
+# Cool shadows, warm amber highlights, restrained grain. Silhouette-friendly.
+name: cinematic_psychology
+width: 1080
+height: 1920
+fps: 30
+contrast: 1.10
+saturation: 0.92
+gamma: 0.97
+brightness: -0.015
+warmth: 0.030
+shadow_tint_r: -0.045
+shadow_tint_b: 0.055
+clarity: 0.40
+grain: 5.0
+halation: 0.16
+halation_sigma: 24.0
+vignette: 0.38
+letterbox_ratio: null

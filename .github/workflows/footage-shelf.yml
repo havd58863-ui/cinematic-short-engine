@@ -1,0 +1,45 @@
+name: Footage shelf
+
+# Fetches the curated Commons shelf on a runner, verifies every file with
+# ffprobe, and publishes it as release assets so renders never depend on a live
+# download from a rate-limited host.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish the shelf under
+        default: footage-v1
+  push:
+    branches: [feat/cinematic-render-pipeline]
+    paths: [config/footage_catalog.yaml, scripts/fetch_footage_shelf.py]
+
+permissions:
+  contents: write
+
+jobs:
+  shelf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          pip install --quiet httpx pyyaml
+      - name: Fetch and verify
+        run: python scripts/fetch_footage_shelf.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: footage-shelf
+          path: shelf/
+          retention-days: 14
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ inputs.tag || 'footage-v1' }}"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Footage shelf" --notes "Verified Wikimedia Commons clips used by the demo renders. Credits in manifest.json."
+          gh release upload "$tag" shelf/*.webm shelf/*.mp4 shelf/manifest.json --clobber

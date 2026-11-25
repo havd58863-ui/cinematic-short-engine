@@ -1,0 +1,70 @@
+name: cinematic-build (demo)
+
+on:
+  workflow_dispatch:
+    inputs:
+      account:
+        description: "Account look to apply"
+        type: choice
+        options: [psychology, storytelling]
+        default: psychology
+      keep_intermediates:
+        description: "Upload per-shot files too"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-dejavu-core
+
+      - name: Install engine
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Unit and gate tests
+        run: python -m pytest -q
+
+      - name: Render demo master
+        run: |
+          python scripts/demo_pipeline.py --out demo/out
+        env:
+          PYTHONPATH: src
+
+      - name: Report measurements
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          report = json.loads(pathlib.Path("demo/out/demo_report.json").read_text())
+          print(json.dumps(report, indent=2))
+          gate = report["motion_gate"]
+          assert gate["failures"] == 0, "a shot failed the real-motion gate"
+          assert report["rhythm_gate"]["passed"], "edit failed the rhythm gate"
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cinematic-demo-${{ inputs.account }}
+          path: |
+            demo/out/preview.mp4
+            demo/out/master.mp4
+            demo/out/manifest.json
+            demo/out/demo_report.json
+          retention-days: 14
+          if-no-files-found: error

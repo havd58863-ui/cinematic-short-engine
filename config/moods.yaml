@@ -1,0 +1,26 @@
+# Mood → score parameters. The music backend reads these directly, so a new
+# emotional register is a config change rather than a code change.
+controlled_tension:
+  root: 57        # A3
+  mode: minor
+  bpm: 76
+  brightness: 0.30
+  pulse: 0.28
+  pad_level: 0.60
+  sub_level: 0.24
+warm_nostalgia:
+  root: 55        # G3
+  mode: dorian
+  bpm: 66
+  brightness: 0.55
+  pulse: 0.22
+  pad_level: 0.62
+  sub_level: 0.18
+quiet_wonder:
+  root: 60        # C4
+  mode: major
+  bpm: 62
+  brightness: 0.65
+  pulse: 0.18
+  pad_level: 0.58
+  sub_level: 0.15

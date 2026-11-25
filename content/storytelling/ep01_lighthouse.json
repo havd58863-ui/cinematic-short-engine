@@ -1,0 +1,124 @@
+{
+  "account": "account_02_storytelling",
+  "title": "The Lighthouse That Still Lights Itself",
+  "cold_open": "The keeper died in sixty two. The lamp has never gone dark.",
+  "question": "Nobody in the village agrees on why it still burns, and the ones who remember will not say.",
+  "journey": "Every winter, when the sea turns iron, the children walk the cliff path to watch. They bring blankets and silence, because the adults taught them this is not a thing you talk through. The lamp turns, patient, sweeping light across the water as if looking for someone. Boats that should have broken on those rocks came home instead. Men who swore they saw nothing returned with stories they could not finish. The keeper left no family, no letters, only a chair worn smooth in the shape of a man who sat there forty years.",
+  "discovery": "One night a girl stayed behind after the others. She found the door unlocked, the stairs dry, the lamp room warm. And on the glass, in the dust of decades, a single line was written by a finger that had not been there in sixty years.",
+  "emotional_turn": "It said: keep it turning, even when no one is coming. She understood then that the light had never been for the ships. It was a promise kept long after the person who made it had gone, and the village had been living inside that promise without knowing it.",
+  "payoff": "She went home and told no one. But every winter after that, when the lamp swept across the water, she stood at her window and answered it, the way you answer someone who has been waiting for you to remember them.",
+  "after_image": "Some lights are not warnings. They are goodbyes that refused to end.",
+  "world": "seaside_town",
+  "hero_shot": "A white lighthouse on a black cliff, its beam turning across a winter sea",
+  "tone": {
+    "mood": "warm_nostalgia",
+    "voice": "en-US-EmmaNeural",
+    "rate": "-4%"
+  },
+  "beats": [
+    {
+      "field": "cold_open",
+      "why": "Opens on a fact that should be impossible, so the viewer needs the next sentence.",
+      "visual": "lighthouse on a stormy coast",
+      "tags": [
+        "lighthouse",
+        "storm",
+        "coast"
+      ],
+      "visuals": [
+        "lighthouse"
+      ]
+    },
+    {
+      "field": "question",
+      "why": "States the mystery plainly and refuses to explain it yet.",
+      "visual": "waves breaking on cliffs at dusk",
+      "tags": [
+        "waves",
+        "cliffs",
+        "dusk"
+      ],
+      "visuals": [
+        "sea_calm"
+      ]
+    },
+    {
+      "field": "journey",
+      "why": "Builds the world through small physical details instead of summary, so the place feels lived in.",
+      "visual": "fishing boats on a grey winter sea",
+      "tags": [
+        "boats",
+        "sea",
+        "winter"
+      ],
+      "visuals": [
+        "lighthouse",
+        "snow_street",
+        "lighthouse",
+        "sea_calm",
+        "sea_calm",
+        "fog_lake"
+      ]
+    },
+    {
+      "field": "discovery",
+      "why": "Moves the camera from the wide world into one room, which is where the story turns.",
+      "visual": "dust in a shaft of light in an old room",
+      "tags": [
+        "dust",
+        "light",
+        "room"
+      ],
+      "visuals": [
+        "fog_lake",
+        "dust_light",
+        "fog_lake",
+        "dust_light"
+      ]
+    },
+    {
+      "field": "emotional_turn",
+      "why": "Reframes the light from a warning into a promise, which is the emotional centre of the film.",
+      "visual": "beam of light turning across dark water",
+      "tags": [
+        "light",
+        "water",
+        "night"
+      ],
+      "visuals": [
+        "lighthouse",
+        "lighthouse",
+        "sea_calm"
+      ]
+    },
+    {
+      "field": "payoff",
+      "why": "Releases the tension with an ordinary human gesture rather than a revelation.",
+      "visual": "warm window light at night in falling snow",
+      "tags": [
+        "window",
+        "snow",
+        "warm"
+      ],
+      "visuals": [
+        "snow_street",
+        "candle",
+        "candle"
+      ]
+    },
+    {
+      "field": "after_image",
+      "why": "Ends on a line that re-reads the whole story, leaving the feeling behind after the last frame.",
+      "visual": "sunrise over a calm winter sea",
+      "tags": [
+        "sunrise",
+        "sea",
+        "calm"
+      ],
+      "visuals": [
+        "sea_calm",
+        "lighthouse"
+      ]
+    }
+  ]
+}
