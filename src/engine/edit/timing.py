@@ -66,7 +66,7 @@ def plan_shots(
     if not pool:
         raise ValueError("at least one clip is required")
     policy = policy or SourcePolicy()
-    used: set[str] = set()
+    usage: dict[str, int] = {}
     last_path: str | None = None
     cursor = 0.0
     planned: list[PlannedShot] = []
@@ -80,10 +80,16 @@ def plan_shots(
         offset = 0.0
         for cut in range(cuts):
             length = needed - offset if cut == cuts - 1 else piece
-            candidates = [clip for clip in pool if clip.path not in used] or list(pool)
-            if last_path and len({clip.path for clip in candidates}) > 1:
-                candidates = [clip for clip in candidates if clip.path != last_path]
+            if last_path and len({clip.path for clip in pool}) > 1:
+                fresh = [clip for clip in pool if clip.path != last_path]
+            else:
+                fresh = list(pool)
+            # Spread reuse evenly: only clips at the lowest usage count compete on
+            # relevance, so a well-tagged clip cannot carry a third of the film.
+            floor = min(usage.get(clip.path, 0) for clip in fresh)
+            candidates = [clip for clip in fresh if usage.get(clip.path, 0) == floor]
             chosen = max(candidates, key=lambda clip: _score(entry.beat, clip, policy))
+            usage[chosen.path] = usage.get(chosen.path, 0) + 1
 
             speed = 1.0
             available = chosen.duration_seconds - 0.1
@@ -112,7 +118,6 @@ def plan_shots(
             planned.append(
                 PlannedShot(shot=shot, timeline_start=round(cursor + offset, 3), words=words)
             )
-            used.add(chosen.path)
             last_path = chosen.path
             offset += length
         cursor += needed

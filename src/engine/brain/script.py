@@ -91,6 +91,7 @@ def beats(script: dict, account: AccountId) -> list[dict]:
                 "field": field,
                 "text": script[field],
                 "visual": entry["visual"],
+                "visuals": entry.get("visuals") or [entry["visual"]],
                 "tags": entry.get("tags", []),
                 "why": entry["why"],
             }

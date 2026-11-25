@@ -247,17 +247,27 @@ def _from_catalog(entries: list[dict], query: str) -> list[Candidate]:
     ]
 
 
-def _from_shelf(shelf: pathlib.Path, queries: list[str], per_query: int = 2) -> list[Clip]:
+def _from_shelf(shelf: pathlib.Path, queries: list[str], per_query: int = 3) -> list[Clip]:
     manifest = json.loads((shelf / "manifest.json").read_text(encoding="utf-8"))
     clips: list[Clip] = []
     taken: set[str] = set()
     for query in queries:
         wanted = set(tokens(query))
-        scored = sorted(
-            manifest,
-            key=lambda entry: -len(wanted & set(tokens(entry["theme"]) + tokens(entry["title"]))),
-        )
-        for entry in [item for item in scored if item["file"] not in taken][:per_query]:
+        # A theme that names the query is what the writer meant; a single shared
+        # word ("street" matching a city junction) is how an off-theme clip slips in.
+        tiers = [
+            [item for item in manifest if item["theme"] == query],
+            [
+                item for item in manifest
+                if len(wanted & set(tokens(item["theme"]) + tokens(item["title"]))) >= 2
+            ],
+            [
+                item for item in manifest
+                if wanted & set(tokens(item["theme"]) + tokens(item["title"]))
+            ],
+        ]
+        pool = next((tier for tier in tiers if tier), [])
+        for entry in [item for item in pool if item["file"] not in taken][:per_query]:
             taken.add(entry["file"])
             path = shelf / entry["file"]
             if not path.exists():

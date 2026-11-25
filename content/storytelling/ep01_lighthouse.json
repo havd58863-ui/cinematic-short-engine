@@ -1,7 +1,7 @@
 {
   "account": "account_02_storytelling",
   "title": "The Lighthouse That Still Lights Itself",
-  "cold_open": "The old keeper died in nineteen sixty two, and the lamp has never once gone dark.",
+  "cold_open": "The keeper died in sixty two. The lamp has never gone dark.",
   "question": "Nobody in the village agrees on why it still burns, and the ones who remember will not say.",
   "journey": "Every winter, when the sea turns iron, the children walk the cliff path to watch. They bring blankets and silence, because the adults taught them this is not a thing you talk through. The lamp turns, patient, sweeping light across the water as if looking for someone. Boats that should have broken on those rocks came home instead. Men who swore they saw nothing returned with stories they could not finish. The keeper left no family, no letters, only a chair worn smooth in the shape of a man who sat there forty years.",
   "discovery": "One night a girl stayed behind after the others. She found the door unlocked, the stairs dry, the lamp room warm. And on the glass, in the dust of decades, a single line was written by a finger that had not been there in sixty years.",
@@ -86,7 +86,7 @@
         "night"
       ],
       "visuals": [
-        "moon_sea",
+        "lighthouse",
         "lighthouse",
         "sea_calm"
       ]
@@ -102,8 +102,8 @@
       ],
       "visuals": [
         "snow_street",
-        "fireplace",
-        "fireplace"
+        "candle",
+        "candle"
       ]
     },
     {
@@ -116,8 +116,8 @@
         "calm"
       ],
       "visuals": [
-        "sunrise_sea",
-        "moon_sea"
+        "sea_calm",
+        "lighthouse"
       ]
     }
   ]

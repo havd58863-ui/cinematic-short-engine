@@ -127,18 +127,37 @@ def write_ass(
     return target
 
 
+BREAK_BEFORE = frozenset(
+    """
+    and but or so because when while that which who whom whose for to of in on at
+    from with as if then than until after before into over under through
+    """.split()
+)
+PUNCTUATION = ".!?;:,\u2014\u2013"
+
+
 def karaoke_cues(
     words: list[tuple[str, float, float]],
     *,
-    max_words: int = 3,
+    max_words: int = 4,
     tail: float = 0.18,
 ) -> list[Cue]:
-    """Group timed words into short cues that fill word by word as they are spoken."""
+    """Group timed words into cues that fill word by word as they are spoken.
+
+    Cues break at punctuation, and before a joining word once the line is long
+    enough, so a caption never ends mid-phrase ("for someone" / "boats").
+    """
     cues: list[Cue] = []
     chunk: list[tuple[str, float, float]] = []
-    for word in words:
+    for position, word in enumerate(words):
         chunk.append(word)
-        if len(chunk) >= max_words:
+        text = word[0].rstrip("\"')]")
+        following = words[position + 1][0].strip("\"'(").lower() if position + 1 < len(words) else ""
+        at_punctuation = bool(text) and text[-1] in PUNCTUATION
+        joins_next = following in BREAK_BEFORE
+        if at_punctuation or len(chunk) >= max_words or (
+            len(chunk) >= max_words - 1 and joins_next
+        ):
             cues.append(_karaoke_cue(chunk, tail))
             chunk = []
     if chunk:

@@ -5,10 +5,10 @@ width: 1080
 height: 1920
 fps: 30
 contrast: 1.06
-saturation: 1.10
+saturation: 0.98
 gamma: 1.02
 brightness: 0.01
-warmth: 0.075
+warmth: 0.050
 shadow_tint_r: 0.02
 shadow_tint_b: 0.03
 clarity: 0.28

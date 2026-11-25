@@ -26,6 +26,8 @@ ANTI_ALIAS_SIGMA = 1.2
 # A moved still is explained by one transform on nearly every pair. Real footage
 # with a locked-off camera only looks rigid on the pairs where nothing happened.
 RIGID_CONSISTENCY = 0.75
+# No block may carry independent change either: a moved still is uniform.
+RIGID_PEAK = 0.0100
 
 
 class MotionGateError(RuntimeError):
@@ -42,6 +44,7 @@ class MotionReport:
     residual_energy: float
     verdict: str
     reasons: list[str] = field(default_factory=list)
+    peak_energy: float = 0.0
 
     @property
     def passed(self) -> bool:
@@ -55,6 +58,7 @@ class MotionReport:
             "rigid_ratio": round(self.rigid_ratio, 4),
             "motion_energy": round(self.motion_energy, 5),
             "residual_energy": round(self.residual_energy, 5),
+            "peak_energy": round(self.peak_energy, 5),
             "verdict": self.verdict,
             "reasons": self.reasons,
         }
@@ -70,9 +74,18 @@ def _prepare(frame) -> np.ndarray:
     return gray
 
 
+def _peak_residual(diff_map: np.ndarray, blocks: int = 8) -> float:
+    """Mean residual of the most active block: a moved still has none."""
+    height, width = diff_map.shape
+    rows, cols = max(1, height // blocks), max(1, width // blocks)
+    trimmed = diff_map[: rows * blocks, : cols * blocks]
+    grid = trimmed.reshape(blocks, rows, blocks, cols).mean(axis=(1, 3))
+    return float(np.percentile(grid, 90))
+
+
 def _pair_metrics(
     prev: np.ndarray, cur: np.ndarray, orb, matcher
-) -> tuple[float, float | None]:
+) -> tuple[float, float | None, float]:
     """Return (raw_diff, residual_after_rigid_warp), both normalised 0..1.
 
     The residual is measured on lightly blurred frames: resampling during a zoom
@@ -83,28 +96,26 @@ def _pair_metrics(
     kp_a, des_a = orb.detectAndCompute(prev, None)
     kp_b, des_b = orb.detectAndCompute(cur, None)
     if des_a is None or des_b is None or len(kp_a) < MIN_FEATURES or len(kp_b) < MIN_FEATURES:
-        return raw, None
+        return raw, None, raw
 
     matches = matcher.match(des_a, des_b)
     if len(matches) < MIN_FEATURES:
-        return raw, None
+        return raw, None, raw
     matches = sorted(matches, key=lambda m: m.distance)[:200]
     src = np.float32([kp_a[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
     dst = np.float32([kp_b[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
 
     transform, _inliers = cv2.estimateAffinePartial2D(src, dst, method=cv2.RANSAC)
     if transform is None:
-        return raw, None
+        return raw, None, raw
     warped = cv2.warpAffine(
         prev, transform, (cur.shape[1], cur.shape[0]),
         flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE,
     )
     soft_warped = cv2.GaussianBlur(warped, (5, 5), ANTI_ALIAS_SIGMA)
     soft_current = cv2.GaussianBlur(cur, (5, 5), ANTI_ALIAS_SIGMA)
-    residual = float(
-        np.mean(np.abs(soft_current.astype(np.float32) - soft_warped.astype(np.float32))) / 255.0
-    )
-    return raw, residual
+    diff = np.abs(soft_current.astype(np.float32) - soft_warped.astype(np.float32)) / 255.0
+    return raw, float(np.mean(diff)), _peak_residual(diff)
 
 
 def analyze(path: str | pathlib.Path, sample_fps: float = 8.0) -> MotionReport:
@@ -123,6 +134,7 @@ def analyze(path: str | pathlib.Path, sample_fps: float = 8.0) -> MotionReport:
     frozen = rigid = moving = 0
     raws: list[float] = []
     residuals: list[float] = []
+    peaks: list[float] = []
     frame_index = 0
 
     while True:
@@ -135,7 +147,7 @@ def analyze(path: str | pathlib.Path, sample_fps: float = 8.0) -> MotionReport:
         frame_index += 1
         current = _prepare(frame)
         if previous is not None:
-            raw, residual = _pair_metrics(previous, current, orb, matcher)
+            raw, residual, peak = _pair_metrics(previous, current, orb, matcher)
             if raw < CUT_RAW_DIFF:
                 raws.append(raw)
                 if residual is not None:
@@ -144,6 +156,7 @@ def analyze(path: str | pathlib.Path, sample_fps: float = 8.0) -> MotionReport:
                     frozen += 1
                 elif residual is not None and residual < RIGID_RESIDUAL:
                     rigid += 1
+                    peaks.append(peak)
                 else:
                     moving += 1
         previous = current
@@ -159,6 +172,7 @@ def analyze(path: str | pathlib.Path, sample_fps: float = 8.0) -> MotionReport:
     energy = float(np.median(raws))
     # No trackable features means rigidity cannot be claimed: judge on raw motion only.
     residual_energy = float(np.median(residuals)) if residuals else energy
+    peak_energy = float(np.median(peaks)) if peaks else energy
     frozen_ratio = frozen / pairs
     rigid_ratio = rigid / pairs
 
@@ -166,7 +180,12 @@ def analyze(path: str | pathlib.Path, sample_fps: float = 8.0) -> MotionReport:
     reasons: list[str] = []
     if energy < FROZEN_RAW_DIFF * 1.2:
         reasons.append(f"frozen: median frame difference {energy:.4f} — the shot does not move")
-    elif residuals and residual_energy < RIGID_RESIDUAL and rigid_ratio >= RIGID_CONSISTENCY:
+    elif (
+        residuals
+        and residual_energy < RIGID_RESIDUAL
+        and peak_energy < RIGID_PEAK
+        and rigid_ratio >= RIGID_CONSISTENCY
+    ):
         reasons.append(
             f"rigid-only motion: residual {residual_energy:.4f} after removing camera "
             f"pan/zoom on {rigid_ratio:.0%} of pairs — this is a still being moved, "
@@ -176,11 +195,15 @@ def analyze(path: str | pathlib.Path, sample_fps: float = 8.0) -> MotionReport:
         reasons.append(f"motion energy too low ({energy:.4f})")
 
     hard_fail = energy < FROZEN_RAW_DIFF * 1.2 or (
-        bool(residuals) and residual_energy < RIGID_RESIDUAL and rigid_ratio >= RIGID_CONSISTENCY
+        bool(residuals)
+        and residual_energy < RIGID_RESIDUAL
+        and peak_energy < RIGID_PEAK
+        and rigid_ratio >= RIGID_CONSISTENCY
     )
     verdict = "failed" if hard_fail else ("warning" if reasons else "passed")
     return MotionReport(
-        str(source), pairs, frozen_ratio, rigid_ratio, energy, residual_energy, verdict, reasons
+        str(source), pairs, frozen_ratio, rigid_ratio, energy, residual_energy, verdict, reasons,
+        peak_energy,
     )
 
 

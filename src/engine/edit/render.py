@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 
 from engine.edit.edl import EDL, AudioPlan
 from engine.edit.look import LookProfile, master_filter, shot_filter
+from engine.qa.motion_gate import analyze as analyze_motion
 
 
 class RenderError(RuntimeError):
@@ -273,6 +274,14 @@ def render_preview(master: pathlib.Path, out_path: pathlib.Path, width: int = 54
     )
 
 
+def _duration_of(path: str) -> float:
+    result = subprocess.run(
+        [ffprobe_bin(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
+        capture_output=True, text=True, check=True,
+    )
+    return float(result.stdout.strip() or 0.0)
+
+
 def render_edl(
     edl: EDL,
     profile: LookProfile,
@@ -296,10 +305,25 @@ def render_edl(
         if window not in lumas:
             lumas[window] = measure_luma(shot.path, shot.start_seconds, shot.duration_seconds)
         target = shots_dir / f"{position:02d}_{shot.id}.mp4"
-        render_shot(
-            shot, profile, target,
-            letterbox=letterbox, source_crop=crops[shot.path], mean_luma=lumas[window],
-        )
+
+        # The house rule forbids moved stills, so a shot that reads as rigid gets a
+        # second and third chance further into the same clip before it is accepted.
+        chosen = shot
+        for attempt in range(3):
+            render_shot(
+                chosen, profile, target,
+                letterbox=letterbox, source_crop=crops[chosen.path], mean_luma=lumas[window],
+            )
+            report = analyze_motion(target, sample_fps=4.0)
+            if report.verdict != "failed" or attempt == 2:
+                break
+            used = chosen.duration_seconds * chosen.speed
+            limit = max(0.0, _duration_of(chosen.path) - used - 0.1)
+            shifted = min(limit, chosen.start_seconds + max(0.4, used))
+            if shifted <= chosen.start_seconds + 0.05:
+                break
+            chosen = chosen.model_copy(update={"start_seconds": round(shifted, 3)})
+        edl.shots[position] = chosen
         rendered.append(target)
 
     timeline = work / "timeline.mp4"
