@@ -15,3 +15,4 @@ file '/workspace/_analysis/cinematic-short-engine/out/psychology/work/vo/13_padd
 file '/workspace/_analysis/cinematic-short-engine/out/psychology/work/vo/14_padded.wav'
 file '/workspace/_analysis/cinematic-short-engine/out/psychology/work/vo/15_padded.wav'
 file '/workspace/_analysis/cinematic-short-engine/out/psychology/work/vo/16_padded.wav'
+file '/workspace/_analysis/cinematic-short-engine/out/psychology/work/vo/17_padded.wav'

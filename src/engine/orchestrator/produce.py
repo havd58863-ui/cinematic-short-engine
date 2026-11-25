@@ -162,6 +162,7 @@ def produce(
     voice: str | None = None,
     rate: str | None = None,
     seed: int = 7,
+    shelf_dir: str | pathlib.Path | None = None,
 ) -> ProduceResult:
     root = pathlib.Path(out_dir)
     work = pathlib.Path(work_dir) if work_dir else root / "work"
@@ -222,6 +223,7 @@ def produce(
         per_query=1,
         catalog=catalog if catalog.exists() else None,
         account=account.value,
+        shelf_dir=shelf_dir,
     )
 
     beat_audio: list[BeatAudio] = []

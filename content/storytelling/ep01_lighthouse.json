@@ -26,7 +26,7 @@
         "coast"
       ],
       "visuals": [
-        "lighthouse_aerial"
+        "lighthouse"
       ]
     },
     {
@@ -52,12 +52,12 @@
         "winter"
       ],
       "visuals": [
-        "lighthouse_close",
+        "lighthouse",
         "snow_street",
-        "lighthouse_aerial",
-        "fishing_boats",
+        "lighthouse",
         "sea_calm",
-        "train_window"
+        "sea_calm",
+        "fog_lake"
       ]
     },
     {
@@ -70,10 +70,10 @@
         "room"
       ],
       "visuals": [
-        "train_window",
-        "bookshelf",
         "fog_lake",
-        "bookshelf"
+        "dust_light",
+        "fog_lake",
+        "dust_light"
       ]
     },
     {
@@ -87,7 +87,7 @@
       ],
       "visuals": [
         "moon_sea",
-        "lighthouse_close",
+        "lighthouse",
         "sea_calm"
       ]
     },

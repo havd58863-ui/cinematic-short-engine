@@ -22,6 +22,9 @@ build/
 vendor/openmontage/
 
 # Generated media outside curated demo assets
+out/
+shelf/
+*.webm
 *.mp4
 *.mov
 *.mkv

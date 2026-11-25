@@ -170,6 +170,59 @@ def load_catalog(path: str | pathlib.Path, account: str | None = None) -> list[d
     return [entry for entries in payload.values() for entry in entries]
 
 
+ARCHIVE_FORMATS = {"mpeg4", "h.264", "512kb mpeg4", "matroska", "ogg video", "webm"}
+
+
+def search_archive(query: str, *, limit: int = 4) -> list[Candidate]:
+    """Internet Archive mirror of the Pixabay free library: no key, no rate wall."""
+    listing = httpx.get(
+        "https://archive.org/advancedsearch.php",
+        params={
+            "q": f"({query}) AND mediatype:movies AND pixabay",
+            "fl[]": ["identifier", "title"],
+            "rows": limit * 4,
+            "output": "json",
+            "sort[]": "downloads desc",
+        },
+        headers={"User-Agent": USER_AGENT},
+        timeout=40.0,
+    )
+    listing.raise_for_status()
+    found: list[Candidate] = []
+    for doc in listing.json().get("response", {}).get("docs", []):
+        try:
+            meta = httpx.get(
+                f"https://archive.org/metadata/{doc['identifier']}",
+                headers={"User-Agent": USER_AGENT},
+                timeout=40.0,
+            ).json()
+        except httpx.HTTPError:
+            continue
+        videos = [
+            item
+            for item in meta.get("files", [])
+            if item.get("format", "").lower() in ARCHIVE_FORMATS
+            and 800_000 < int(item.get("size", 0) or 0) < 60_000_000
+        ]
+        if not videos:
+            continue
+        # Prefer the heaviest file under the cap: higher bitrate, usually 1080p.
+        chosen = max(videos, key=lambda item: int(item.get("size", 0)))
+        found.append(
+            Candidate(
+                url=f"https://archive.org/download/{doc['identifier']}/{chosen['name']}",
+                credit=f"Internet Archive — {doc.get('title', doc['identifier'])} (Pixabay free licence)",
+                title=str(doc.get("title", doc["identifier"])),
+                width=0,
+                height=0,
+                size_bytes=int(chosen.get("size", 0)),
+            )
+        )
+        if len(found) >= limit:
+            break
+    return found
+
+
 def _from_catalog(entries: list[dict], query: str) -> list[Candidate]:
     exact = [entry for entry in entries if entry.get("query") == query]
     if exact:
@@ -194,6 +247,34 @@ def _from_catalog(entries: list[dict], query: str) -> list[Candidate]:
     ]
 
 
+def _from_shelf(shelf: pathlib.Path, queries: list[str], per_query: int = 2) -> list[Clip]:
+    manifest = json.loads((shelf / "manifest.json").read_text(encoding="utf-8"))
+    clips: list[Clip] = []
+    taken: set[str] = set()
+    for query in queries:
+        wanted = set(tokens(query))
+        scored = sorted(
+            manifest,
+            key=lambda entry: -len(wanted & set(tokens(entry["theme"]) + tokens(entry["title"]))),
+        )
+        for entry in [item for item in scored if item["file"] not in taken][:per_query]:
+            taken.add(entry["file"])
+            path = shelf / entry["file"]
+            if not path.exists():
+                continue
+            clips.append(
+                Clip(
+                    path=str(path),
+                    source=ShotSource.STOCK,
+                    tags=sorted(set(tokens(entry["theme"]) + tokens(entry["title"]))),
+                    duration_seconds=float(entry["duration"]),
+                    mean_luma=measure_luma(path, at=1.0, seconds=1.0),
+                    credit=entry.get("credit") or None,
+                )
+            )
+    return clips
+
+
 def acquire(
     queries: list[str],
     out_dir: str | pathlib.Path,
@@ -202,8 +283,14 @@ def acquire(
     per_query: int = 1,
     catalog: str | pathlib.Path | None = None,
     account: str | None = None,
+    shelf_dir: str | pathlib.Path | None = None,
 ) -> list[Clip]:
     """Download footage for each visual query and describe it as an allocator clip."""
+    if shelf_dir and (pathlib.Path(shelf_dir) / "manifest.json").exists():
+        shelf_clips = _from_shelf(pathlib.Path(shelf_dir), queries)
+        if shelf_clips:
+            return shelf_clips
+
     directory = pathlib.Path(out_dir)
     directory.mkdir(parents=True, exist_ok=True)
     entries = load_catalog(catalog, account) if catalog else []

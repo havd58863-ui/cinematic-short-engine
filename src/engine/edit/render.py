@@ -152,45 +152,63 @@ def mix_audio(plan: AudioPlan, duration: float, out_path: pathlib.Path) -> None:
     """Voice over music with sidechain ducking, normalised to the platform target."""
     inputs: list[str] = []
     graph: list[str] = []
-    labels: list[str] = []
     index = 0
+    has_voice = bool(plan.voice_path)
+    has_music = bool(plan.music_path)
 
-    if plan.voice_path:
+    if has_voice:
         inputs += ["-i", plan.voice_path]
-        graph.append(f"[{index}:a]volume=1.0,aformat=channel_layouts=stereo[vo]")
-        labels.append("[vo]")
+        graph.append(
+            f"[{index}:a]volume=1.0,aformat=channel_layouts=stereo,"
+            f"apad=whole_dur={duration:.3f}[vo]"
+        )
         index += 1
 
-    if plan.music_path:
+    if has_music:
         inputs += ["-stream_loop", "-1", "-i", plan.music_path]
-        graph.append(f"[{index}:a]volume={plan.music_gain_db}dB,aformat=channel_layouts=stereo[mus]")
-        labels.append("[mus]")
+        graph.append(
+            f"[{index}:a]volume={plan.music_gain_db}dB,aformat=channel_layouts=stereo[mus]"
+        )
         index += 1
 
+    sfx_labels: list[str] = []
     for sfx in plan.sfx_paths:
         inputs += ["-i", sfx]
-        graph.append(f"[{index}:a]volume={plan.sfx_gain_db}dB,aformat=channel_layouts=stereo[sfx{index}]")
-        labels.append(f"[sfx{index}]")
+        graph.append(
+            f"[{index}:a]volume={plan.sfx_gain_db}dB,aformat=channel_layouts=stereo[sfx{index}]"
+        )
+        sfx_labels.append(f"[sfx{index}]")
         index += 1
 
-    if not labels:
-        args = [
-            ffmpeg_bin(), "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
-            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
-            "-t", f"{duration:.3f}", str(out_path),
-        ]
-        _run(args, what="silent audio bed")
+    if not (has_voice or has_music or sfx_labels):
+        _run(
+            [
+                ffmpeg_bin(), "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+                "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+                "-t", f"{duration:.3f}", str(out_path),
+            ],
+            what="silent audio bed",
+        )
         return
 
-    if plan.voice_path and plan.music_path:
-        graph.append(
-            "[mus][vo]sidechaincompress=threshold=0.05:ratio=6:attack=20:release=300[musd]"
-        )
-        labels = ["[vo]", "[musd]"] + labels[2:]
+    parts: list[str] = []
+    if has_voice:
+        if has_music:
+            # The voice drives the ducker and still has to reach the mix, so split it.
+            graph.append("[vo]asplit=2[vo_mix][vo_key]")
+            graph.append(
+                "[mus][vo_key]sidechaincompress="
+                "threshold=0.05:ratio=6:attack=20:release=300[musd]"
+            )
+            parts += ["[vo_mix]", "[musd]"]
+        else:
+            parts.append("[vo]")
+    elif has_music:
+        parts.append("[mus]")
+    parts += sfx_labels
 
-    mix_inputs = "".join(labels)
     graph.append(
-        f"{mix_inputs}amix=inputs={len(labels)}:duration=longest:normalize=0,"
+        f"{''.join(parts)}amix=inputs={len(parts)}:duration=longest:normalize=0,"
         f"atrim=0:{duration:.3f},asetpts=N/SR/TB,"
         f"loudnorm=I={plan.target_lufs}:TP={plan.true_peak_db}:LRA=11,"
         "aresample=48000[aout]"

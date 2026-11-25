@@ -23,6 +23,9 @@ CUT_RAW_DIFF = 0.1500
 MIN_MOTION_ENERGY = 0.0030
 MIN_FEATURES = 12
 ANTI_ALIAS_SIGMA = 1.2
+# A moved still is explained by one transform on nearly every pair. Real footage
+# with a locked-off camera only looks rigid on the pairs where nothing happened.
+RIGID_CONSISTENCY = 0.75
 
 
 class MotionGateError(RuntimeError):
@@ -163,16 +166,17 @@ def analyze(path: str | pathlib.Path, sample_fps: float = 8.0) -> MotionReport:
     reasons: list[str] = []
     if energy < FROZEN_RAW_DIFF * 1.2:
         reasons.append(f"frozen: median frame difference {energy:.4f} — the shot does not move")
-    elif residuals and residual_energy < RIGID_RESIDUAL:
+    elif residuals and residual_energy < RIGID_RESIDUAL and rigid_ratio >= RIGID_CONSISTENCY:
         reasons.append(
             f"rigid-only motion: residual {residual_energy:.4f} after removing camera "
-            f"pan/zoom — this is a still being moved, which the house rule forbids"
+            f"pan/zoom on {rigid_ratio:.0%} of pairs — this is a still being moved, "
+            "which the house rule forbids"
         )
     elif energy < MIN_MOTION_ENERGY:
         reasons.append(f"motion energy too low ({energy:.4f})")
 
     hard_fail = energy < FROZEN_RAW_DIFF * 1.2 or (
-        bool(residuals) and residual_energy < RIGID_RESIDUAL
+        bool(residuals) and residual_energy < RIGID_RESIDUAL and rigid_ratio >= RIGID_CONSISTENCY
     )
     verdict = "failed" if hard_fail else ("warning" if reasons else "passed")
     return MotionReport(

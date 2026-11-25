@@ -53,10 +53,10 @@ def test_karaoke_cues_fill_word_by_word() -> None:
     assert "ONE" in cue.text and "THREE" in cue.text
 
 
-def test_plan_shots_uses_sentence_length_and_never_repeats_back_to_back() -> None:
+def test_plan_shots_matches_sentence_time_and_cuts_long_lines() -> None:
     clips = [
         Clip(path=f"/tmp/clip{i}.mp4", source=ShotSource.STOCK, tags=["waves"], duration_seconds=9.0)
-        for i in range(4)
+        for i in range(6)
     ]
     beats = [
         BeatAudio(
@@ -66,10 +66,15 @@ def test_plan_shots_uses_sentence_length_and_never_repeats_back_to_back() -> Non
         )
         for i in range(3)
     ]
-    planned = plan_shots(beats, clips, SourcePolicy())
-    durations = [round(item.shot.duration_seconds, 2) for item in planned]
-    assert durations == [2.22, 3.22, 4.22]
-    assert len({item.shot.path for item in planned}) == 3
+    policy = SourcePolicy()
+    planned = plan_shots(beats, clips, policy)
+
+    per_sentence = [2.0, 3.0, 4.0]
+    assert sum(item.shot.duration_seconds for item in planned) == pytest.approx(sum(per_sentence), abs=0.05)
+    assert all(item.shot.duration_seconds <= policy.max_shot_seconds + 0.01 for item in planned)
+    assert len(planned) == 4  # the four second line earns a second cut
+    for previous, current in zip(planned, planned[1:], strict=False):
+        assert current.shot.path != previous.shot.path
     starts = [item.timeline_start for item in planned]
     assert starts == sorted(starts)
 
@@ -104,3 +109,37 @@ def test_sfx_bed_places_events_where_asked(tmp_path: pathlib.Path) -> None:
 def test_mood_rejects_unknown_mode() -> None:
     with pytest.raises(ValueError):
         Mood(name="bad", mode="lydian-ish")
+
+
+def _tone(path: pathlib.Path, seconds: float, freq: float) -> pathlib.Path:
+    import subprocess
+
+    subprocess.run(
+        [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "lavfi", "-i", f"sine=frequency={freq}:duration={seconds}",
+            "-ar", "48000", "-ac", "2", str(path),
+        ],
+        check=True,
+    )
+    return path
+
+
+@pytest.mark.skipif(__import__("shutil").which("ffmpeg") is None, reason="ffmpeg is required to mix")
+def test_mix_audio_keeps_voice_above_ducked_music(tmp_path: pathlib.Path) -> None:
+    """The voice feeds the ducker and the mix; a single-use label used to break this."""
+    from engine.edit.edl import AudioPlan
+    from engine.edit.render import mix_audio
+
+    voice = _tone(tmp_path / "voice.wav", 3.0, 220.0)
+    music = _tone(tmp_path / "music.wav", 3.0, 110.0)
+    sfx = _tone(tmp_path / "sfx.wav", 0.5, 900.0)
+    out = tmp_path / "mix.wav"
+    mix_audio(
+        AudioPlan(voice_path=str(voice), music_path=str(music), sfx_paths=[str(sfx)], sfx_gain_db=-20.0),
+        3.0,
+        out,
+    )
+    frames, rate = _frames(out)
+    assert out.exists()
+    assert abs(frames / rate - 3.0) < 0.1

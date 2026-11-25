@@ -8,12 +8,13 @@ edit that follows the narration and footage that merely plays underneath it.
 from __future__ import annotations
 
 import dataclasses
+import math
 
 from engine.director.allocate import Beat, Clip, SourcePolicy
 from engine.edit.edl import Shot
 
 BREATH = 0.22
-MAX_SHOT = 8.0
+MAX_SHOT = 6.2
 MIN_SHOT = 1.2
 
 
@@ -71,35 +72,49 @@ def plan_shots(
     planned: list[PlannedShot] = []
 
     for index, entry in enumerate(beats):
-        needed = min(MAX_SHOT, max(MIN_SHOT, round(entry.duration + BREATH, 3)))
-        candidates = [clip for clip in pool if clip.path not in used] or list(pool)
-        if last_path and len({clip.path for clip in candidates}) > 1:
-            candidates = [clip for clip in candidates if clip.path != last_path]
-        chosen = max(candidates, key=lambda clip: _score(entry.beat, clip, policy))
+        needed = min(MAX_SHOT, max(MIN_SHOT, round(entry.duration, 3)))
+        # A sentence longer than the retention ceiling earns extra cuts inside it,
+        # while the narration keeps running across them.
+        cuts = max(1, math.ceil(needed / policy.max_shot_seconds))
+        piece = round(needed / cuts, 3)
+        offset = 0.0
+        for cut in range(cuts):
+            length = needed - offset if cut == cuts - 1 else piece
+            candidates = [clip for clip in pool if clip.path not in used] or list(pool)
+            if last_path and len({clip.path for clip in candidates}) > 1:
+                candidates = [clip for clip in candidates if clip.path != last_path]
+            chosen = max(candidates, key=lambda clip: _score(entry.beat, clip, policy))
 
-        speed = 1.0
-        available = chosen.duration_seconds - 0.1
-        if available < needed:
-            speed = max(0.6, round(available / needed, 3))
-        start = _in_point(chosen, needed * speed, index)
+            speed = 1.0
+            available = chosen.duration_seconds - 0.1
+            if available < length:
+                speed = max(0.6, round(available / length, 3))
+            start = _in_point(chosen, length * speed, index + cut)
 
-        shot = Shot(
-            id=f"s{index:02d}_{entry.beat.id}"[:40],
-            source=chosen.source,
-            path=chosen.path,
-            start_seconds=start,
-            duration_seconds=needed,
-            speed=speed,
-            why=entry.beat.visual_intent,
-            narrative_function=entry.beat.id,
-        )
-        words = tuple(
-            TimedWord(word.text, round(cursor + word.start, 3), round(cursor + word.end, 3))
-            for word in entry.words
-        )
-        planned.append(PlannedShot(shot=shot, timeline_start=round(cursor, 3), words=words))
+            shot = Shot(
+                id=f"s{index:02d}{chr(97 + cut)}_{entry.beat.id}"[:40],
+                source=chosen.source,
+                path=chosen.path,
+                start_seconds=start,
+                duration_seconds=round(length, 3),
+                speed=speed,
+                why=entry.beat.visual_intent,
+                narrative_function=entry.beat.id,
+            )
+            words = (
+                tuple(
+                    TimedWord(word.text, round(cursor + word.start, 3), round(cursor + word.end, 3))
+                    for word in entry.words
+                )
+                if cut == 0
+                else ()
+            )
+            planned.append(
+                PlannedShot(shot=shot, timeline_start=round(cursor + offset, 3), words=words)
+            )
+            used.add(chosen.path)
+            last_path = chosen.path
+            offset += length
         cursor += needed
-        used.add(chosen.path)
-        last_path = chosen.path
 
     return planned
